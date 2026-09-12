@@ -70,6 +70,24 @@ fn defaults() -> (TempDir, SettingsDefaults) {
     (root, defaults)
 }
 
+#[test]
+fn install_directory_defaults_create_app_owned_paths() {
+    let root = tempfile::tempdir().expect("temp root");
+    let defaults = SettingsDefaults::from_install_directory(root.path())
+        .expect("install-relative defaults should resolve");
+
+    assert_eq!(
+        defaults.download_directory,
+        root.path().join("BiliCatch").to_string_lossy()
+    );
+    assert_eq!(
+        defaults.temporary_directory,
+        root.path().join("Temp").to_string_lossy()
+    );
+    assert!(root.path().join("BiliCatch").is_dir());
+    assert!(root.path().join("Temp").is_dir());
+}
+
 fn details(error: &bilicatch_lib::models::AppError) -> &str {
     error.details.as_deref().expect("stable error details")
 }

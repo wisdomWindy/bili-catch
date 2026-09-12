@@ -88,3 +88,11 @@
 - 视觉/交互：真实应用内浏览器确认窄屏单列无溢出/重叠、四组与 14 项完整；light 和 en-US 即时生效并显示 Saved；AX 树确认 labels、switch、range 与 live status。
 - 受控限制：外部宽屏浏览器检测到用户输入后停止自动化；1280/900/800 采用 CSS 断点、页面/组件测试和 build 证据，不伪造截图。真实 updater/license 仍按 spec deferred 至 system-release。
 - 验收：SET-AC-01..20 全部 PASS；原始命令、静态扫描与视觉记录见 `verification/evidence/commands.md`。
+
+## 默认目录调整
+
+- 默认下载目录改为安装目录下的 BiliCatch 子目录。
+- 默认临时目录改为安装目录下的 Temp 子目录。
+- 安装启动时创建两个目录；已有持久化且有效的用户路径保持不变，不会被默认值覆盖。
+- 组合根复用 Tauri resource_dir 的父目录解析安装目录。
+- 验证：新增安装目录默认路径测试，设置管理器 7 tests PASS；Rust 全量 73 passed / 1 ignored。

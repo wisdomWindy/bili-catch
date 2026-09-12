@@ -29,6 +29,11 @@ pub struct SettingsDefaults {
 }
 
 impl SettingsDefaults {
+    pub fn from_install_directory(install_directory: impl Into<PathBuf>) -> Result<Self, AppError> {
+        let install_directory = install_directory.into();
+        Self::from_system_paths(install_directory.clone(), install_directory.join("Temp"))
+    }
+
     pub fn from_system_paths(
         download_root: impl Into<PathBuf>,
         temporary_directory: impl Into<PathBuf>,
@@ -36,6 +41,7 @@ impl SettingsDefaults {
         let download_directory = download_root.into().join("BiliCatch");
         fs::create_dir_all(&download_directory).map_err(|_| store_error())?;
         let temporary_directory = temporary_directory.into();
+        fs::create_dir_all(&temporary_directory).map_err(|_| store_error())?;
         validate_directory(&download_directory)?;
         validate_directory(&temporary_directory)?;
 

@@ -44,11 +44,14 @@ pub fn run() {
                 let _ = auth_manager.restore_on_startup().await;
             });
 
-            let defaults = services::settings::SettingsDefaults::from_system_paths(
-                app.path().download_dir()?,
-                app.path().temp_dir()?,
-            )
-            .map_err(|error| std::io::Error::other(error.message))?;
+            let resource_dir = app.path().resource_dir()?;
+            let install_directory = resource_dir
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .unwrap_or_else(|| resource_dir.clone());
+            let defaults =
+                services::settings::SettingsDefaults::from_install_directory(install_directory)
+                    .map_err(|error| std::io::Error::other(error.message))?;
             let settings_store = infrastructure::settings::TauriSettingsStore::build(app)
                 .map_err(|error| std::io::Error::other(error.message))?;
             let settings_manager = Arc::new(
@@ -113,7 +116,6 @@ pub fn run() {
                 infrastructure::download::HttpByteDownloader::new(workspace.clone())
                     .map_err(|error| std::io::Error::other(error.message))?,
             );
-            let resource_dir = app.path().resource_dir()?;
             let ffmpeg_path = [
                 resource_dir.join("ffmpeg.exe"),
                 resource_dir.join("ffmpeg-x86_64-pc-windows-msvc.exe"),

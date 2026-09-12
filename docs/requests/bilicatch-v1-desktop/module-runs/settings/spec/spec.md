@@ -115,8 +115,8 @@ BiliCatch 现有 `/settings` 只是占位页，主题/语言仅有会话内默�
 
 | 字段 | 必填/控件 | 允许值与默认值 | 提交与失败行为 |
 | --- | --- | --- | --- |
-| `downloadDirectory` | 必填、只读路径 + 目录按钮 | 绝对、存在的目录；默认系统 Downloads 下 `BiliCatch` | picker 选中后保存；失败回退 |
-| `temporaryDirectory` | 必填、只读路径 + 目录按钮 | 绝对、存在的目录；默认系统 temp | picker 选中后保存；失败回退 |
+| `downloadDirectory` | 必填、只读路径 + 目录按钮 | 绝对、存在的目录；默认安装目录下 `BiliCatch` | picker 选中后保存；失败回退 |
+| `temporaryDirectory` | 必填、只读路径 + 目录按钮 | 绝对、存在的目录；默认安装目录下 Temp | picker 选中后保存；失败回退 |
 | `maxConcurrentTasks` | 必填、整数滑块 | `1..10`、step 1、默认 3 | input 预览；commit/失焦保存 |
 | `connectionsPerTask` | 必填、整数滑块 | `1..32`、step 1、默认 8 | input 预览；commit/失焦保存 |
 | `defaultVideoQuality` | 必填、select | `16/32/64/80/112/120/125/127`；默认 `80` (1080P) | change 后保存；失败回退 |
@@ -299,7 +299,7 @@ select 不接受自由文本。滑块 UI 自身限制范围，但 Rust 对整数
 - 首次运行无文档：创建 V1 defaults，显式保存成功后返回 revision 0；保存失败为 load error。
 - 文档缺字段/含未知字段/单字段非法：迁移为完整合法 V1，未知字段丢弃，非法字段回退默认并写回。
 - 文档整体不可反序列化或 store 文件 I/O 失败：不覆盖原文件，返回 load error；不得自动清空用户设置。
-- 默认 Downloads/BiliCatch 不存在：创建；无法创建则 load error。系统 Downloads API 不可用时不拼接 `~`，返回 load error。
+- 默认安装目录下 BiliCatch 不存在：创建；无法创建则 load error。安装目录解析失败时不拼接 `~`，返回 load error。
 - 用户在 picker 取消：不调用 update、不改变状态。
 - 用户选择相对/不存在/文件路径：Rust 拒绝并回退 UI。
 - 同字段快速 A->B->C：允许不保存 B，但最终 confirmed/disk 必须 C；A 的迟到结果不能覆盖 C。
