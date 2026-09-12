@@ -45,9 +45,12 @@ pub fn run() {
             });
 
             let resource_dir = app.path().resource_dir()?;
-            // The executable directory is the NSIS install root. The resource
-            // directory may be nested differently between bundle targets.
-            let install_directory = app.path().executable_dir()?;
+            // Resolve the install root from the running executable. Tauri's
+            // executable_dir resolver can return an unknown path on Windows.
+            let install_directory = std::env::current_exe()?
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .ok_or_else(|| std::io::Error::other("executable has no parent directory"))?;
             let defaults =
                 services::settings::SettingsDefaults::from_install_directory(install_directory)
                     .map_err(|error| std::io::Error::other(error.message))?;
