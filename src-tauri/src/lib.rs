@@ -45,10 +45,9 @@ pub fn run() {
             });
 
             let resource_dir = app.path().resource_dir()?;
-            let install_directory = resource_dir
-                .parent()
-                .map(std::path::Path::to_path_buf)
-                .unwrap_or_else(|| resource_dir.clone());
+            // The executable directory is the NSIS install root. The resource
+            // directory may be nested differently between bundle targets.
+            let install_directory = app.path().executable_dir()?;
             let defaults =
                 services::settings::SettingsDefaults::from_install_directory(install_directory)
                     .map_err(|error| std::io::Error::other(error.message))?;

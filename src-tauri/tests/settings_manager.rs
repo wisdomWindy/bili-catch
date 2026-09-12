@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
@@ -88,6 +89,55 @@ fn install_directory_defaults_create_app_owned_paths() {
     assert!(root.path().join("temp").is_dir());
 }
 
+#[test]
+fn migration_replaces_legacy_install_sibling_defaults() {
+    let root = tempfile::tempdir().expect("temp root");
+    let install = root.path().join("bilicatch");
+    std::fs::create_dir_all(&install).expect("install directory");
+    let legacy_download = root.path().join("download");
+    let legacy_temp = root.path().join("temp");
+    std::fs::create_dir_all(&legacy_download).expect("legacy download directory");
+    std::fs::create_dir_all(&legacy_temp).expect("legacy temp directory");
+    let defaults = SettingsDefaults::from_install_directory(&install).expect("defaults");
+    let store = Arc::new(MemorySettingsStore::with_raw(json!({
+        "schemaVersion": 1,
+        "revision": 2,
+        "values": {
+            "downloadDirectory": legacy_download,
+            "temporaryDirectory": legacy_temp
+        }
+    })));
+    let manager = SettingsManager::load(store.clone(), defaults.clone()).expect("migration");
+    let snapshot = manager.snapshot();
+    assert_eq!(
+        snapshot.values.download_directory,
+        defaults.download_directory
+    );
+    assert_eq!(
+        snapshot.values.temporary_directory,
+        defaults.temporary_directory
+    );
+    assert_eq!(store.saved().len(), 1);
+}
+
+#[test]
+fn install_defaults_strip_windows_extended_prefix() {
+    let root = tempfile::tempdir().expect("temp root");
+    let root_text = root.path().to_string_lossy();
+    let root_text = root_text.strip_prefix(r"\\?\").unwrap_or(&root_text);
+    let extended = PathBuf::from(format!(r"\\?\{root_text}"));
+    let defaults =
+        SettingsDefaults::from_install_directory(&extended).expect("extended paths should resolve");
+
+    assert_eq!(
+        defaults.download_directory,
+        root.path().join("download").to_string_lossy()
+    );
+    assert_eq!(
+        defaults.temporary_directory,
+        root.path().join("temp").to_string_lossy()
+    );
+}
 fn details(error: &bilicatch_lib::models::AppError) -> &str {
     error.details.as_deref().expect("stable error details")
 }

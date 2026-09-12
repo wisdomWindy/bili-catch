@@ -26,15 +26,30 @@ pub trait SettingsStorePort: Send + Sync {
 pub struct SettingsDefaults {
     pub download_directory: String,
     pub temporary_directory: String,
+    legacy_download_directory: Option<String>,
+    legacy_temporary_directory: Option<String>,
 }
 
 impl SettingsDefaults {
     pub fn from_install_directory(install_directory: impl Into<PathBuf>) -> Result<Self, AppError> {
-        let install_directory = install_directory.into();
-        Self::from_directories(
+        let install_directory = normalize_path(install_directory.into());
+        let mut defaults = Self::from_directories(
             install_directory.join("download"),
             install_directory.join("temp"),
-        )
+        )?;
+        if let Some(previous_root) = install_directory.parent() {
+            defaults.legacy_download_directory = Some(
+                normalize_path(previous_root.join("download"))
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+            defaults.legacy_temporary_directory = Some(
+                normalize_path(previous_root.join("temp"))
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
+        Ok(defaults)
     }
 
     pub fn from_system_paths(
@@ -51,6 +66,8 @@ impl SettingsDefaults {
         download_directory: PathBuf,
         temporary_directory: PathBuf,
     ) -> Result<Self, AppError> {
+        let download_directory = normalize_path(download_directory);
+        let temporary_directory = normalize_path(temporary_directory);
         fs::create_dir_all(&download_directory).map_err(|_| store_error())?;
         fs::create_dir_all(&temporary_directory).map_err(|_| store_error())?;
         validate_directory(&download_directory)?;
@@ -59,6 +76,8 @@ impl SettingsDefaults {
         Ok(Self {
             download_directory: download_directory.to_string_lossy().into_owned(),
             temporary_directory: temporary_directory.to_string_lossy().into_owned(),
+            legacy_download_directory: None,
+            legacy_temporary_directory: None,
         })
     }
 
@@ -182,13 +201,15 @@ fn migrate_document(
         schema_version: SETTINGS_SCHEMA_VERSION,
         revision: object.get("revision").and_then(Value::as_u64).unwrap_or(0),
         values: SettingsValues {
-            download_directory: valid_persisted_directory(
+            download_directory: migrated_persisted_directory(
                 values.get("downloadDirectory"),
                 &fallback.download_directory,
+                defaults.legacy_download_directory.as_deref(),
             ),
-            temporary_directory: valid_persisted_directory(
+            temporary_directory: migrated_persisted_directory(
                 values.get("temporaryDirectory"),
                 &fallback.temporary_directory,
+                defaults.legacy_temporary_directory.as_deref(),
             ),
             max_concurrent_tasks: bounded_u8(
                 values.get("maxConcurrentTasks"),
@@ -253,6 +274,43 @@ fn valid_persisted_directory(value: Option<&Value>, fallback: &str) -> String {
         .filter(|value| validate_directory(Path::new(value)).is_ok())
         .unwrap_or(fallback)
         .to_owned()
+}
+
+fn migrated_persisted_directory(
+    value: Option<&Value>,
+    fallback: &str,
+    legacy_default: Option<&str>,
+) -> String {
+    let Some(value) = value.and_then(Value::as_str) else {
+        return fallback.to_owned();
+    };
+    if legacy_default.is_some_and(|legacy| paths_equal(value, legacy)) {
+        return fallback.to_owned();
+    }
+    valid_persisted_directory(Some(&Value::String(value.to_owned())), fallback)
+}
+
+fn normalize_path(path: PathBuf) -> PathBuf {
+    let value = path.to_string_lossy();
+    let value = value
+        .strip_prefix(r"\\?\")
+        .or_else(|| value.strip_prefix("//?/"))
+        .unwrap_or(&value);
+    PathBuf::from(value)
+}
+
+fn paths_equal(left: &str, right: &str) -> bool {
+    let left = normalize_path(PathBuf::from(left));
+    let right = normalize_path(PathBuf::from(right));
+    #[cfg(windows)]
+    {
+        left.to_string_lossy()
+            .eq_ignore_ascii_case(&right.to_string_lossy())
+    }
+    #[cfg(not(windows))]
+    {
+        left == right
+    }
 }
 
 fn apply_patch(values: &mut SettingsValues, patch: SettingsPatch) {
