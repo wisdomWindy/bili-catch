@@ -78,14 +78,14 @@ fn install_directory_defaults_create_app_owned_paths() {
 
     assert_eq!(
         defaults.download_directory,
-        root.path().join("BiliCatch").to_string_lossy()
+        root.path().join("download").to_string_lossy()
     );
     assert_eq!(
         defaults.temporary_directory,
-        root.path().join("Temp").to_string_lossy()
+        root.path().join("temp").to_string_lossy()
     );
-    assert!(root.path().join("BiliCatch").is_dir());
-    assert!(root.path().join("Temp").is_dir());
+    assert!(root.path().join("download").is_dir());
+    assert!(root.path().join("temp").is_dir());
 }
 
 fn details(error: &bilicatch_lib::models::AppError) -> &str {

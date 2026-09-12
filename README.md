@@ -11,7 +11,7 @@ BiliCatch 是一个基于 Tauri 2、Vue 3、TypeScript 和 Rust 的哔哩哔哩�
 - 下载任务支持排队、暂停、恢复、取消、重试、删除和完成记录清理。
 - 任务状态和设置可持久化恢复，断电或重启后可继续处理可恢复任务。
 - 设置页支持下载目录、临时目录、并发数、主题、语言、通知和关闭行为配置。
-- 默认目录为安装目录下的 BiliCatch 和 Temp 子目录；已有有效的自定义目录不会被覆盖。
+- 默认目录为安装目录下的 download 和 temp 子目录；已有有效的自定义目录不会被覆盖。
 - Windows 构建内置 FFmpeg sidecar，用于音频转码和视频音画合并。
 - 更新器使用 GitHub Releases 的 latest.json，更新包安装前会校验 Tauri updater 签名。
 

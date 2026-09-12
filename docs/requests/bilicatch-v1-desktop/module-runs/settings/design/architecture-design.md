@@ -301,7 +301,7 @@ SettingsDocument / SettingsSnapshot
     autoCheckUpdates: boolean = true
 ```
 
-下载目录默认值由安装目录追加 BiliCatch 子目录，临时目录由安装目录追加 Temp 子目录；二者不在前端常量中伪造。目录不存在时 manager 可创建 BiliCatch 默认下载目录；用户选择值必须是绝对且存在的目录。
+下载目录默认值由安装目录追加 download 子目录，临时目录由安装目录追加 temp 子目录；二者不在前端常量中伪造。目录不存在时 manager 可创建 download 默认下载目录；用户选择值必须是绝对且存在的目录。
 
 TypeScript `SettingsPatch` 使用由 `SettingsValues` 映射出的 discriminated union：每个 `field` 只能携带对应类型的 `value`。Rust 使用 `#[serde(tag = "field", content = "value", rename_all = "camelCase")]` 的 enum 镜像该契约，避免通用 JSON value 进入 manager。
 

@@ -127,7 +127,7 @@ flowchart TD
 - [ ] 写 transaction red：no-op 不增 revision；save 失败 snapshot/revision 不变；两字段顺序更新无 lost update。
 - [ ] 写 adapter red：`set` 后 `save` 失败恢复旧 cache，后续成功保存不含失败 candidate。
 - [ ] 运行 Rust 定向测试确认 red，然后实现 migration/validation/manager/store adapter 最小代码。
-- [ ] 用 `StoreBuilder::disable_auto_save()` 构建固定 `settings.json`；默认下载目录用安装目录下 BiliCatch，默认 temp 用安装目录下 Temp。
+- [ ] 用 `StoreBuilder::disable_auto_save()` 构建固定 `settings.json`；默认下载目录用安装目录下 download，默认 temp 用安装目录下 temp。
 - [ ] 注册 plugin、`Arc<SettingsManager>` 与两个 commands；command 只委派，不做字段分支。
 - [ ] 运行 Rust settings tests、serde integration、fmt/check；静态检查 manager 无 `AppHandle` 且无锁跨 await。
 
