@@ -1,0 +1,22 @@
+{
+  "code": 0,
+  "message": "0",
+  "data": {
+    "accept_quality": [120, 80, 64, 32],
+    "accept_description": ["4K 超清", "1080P 高清", "720P 高清", "480P 清晰"],
+    "dash": {
+      "video": [
+        { "id": 80, "codecs": "avc1.640032" },
+        { "id": 80, "codecs": "hev1.1.6.L120.90" },
+        { "id": 80, "codecs": "av01.0.08M.08" },
+        { "id": 64, "codecs": "avc1.640028" },
+        { "id": 32, "codecs": "avc1.64001f" }
+      ],
+      "audio": [
+        { "bandwidth": 192000 },
+        { "bandwidth": 128000 },
+        { "bandwidth": 128000 }
+      ]
+    }
+  }
+}

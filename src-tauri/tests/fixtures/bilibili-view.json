@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "message": "0",
+  "data": {
+    "bvid": "BV1xx411c7BF",
+    "aid": 170001,
+    "title": "Fixture video",
+    "pic": "https://i0.hdslb.com/bfs/archive/fixture.jpg",
+    "duration": 183,
+    "owner": { "name": "Fixture owner" },
+    "pages": [
+      { "cid": 1001, "page": 1, "part": "Opening", "duration": 90 },
+      { "cid": 1002, "page": 2, "part": "Deep dive", "duration": 93 }
+    ]
+  }
+}

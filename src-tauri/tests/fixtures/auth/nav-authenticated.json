@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "message": "0",
+  "data": {
+    "isLogin": true,
+    "mid": 9007199254740993,
+    "uname": "测试账号",
+    "face": "https://i0.hdslb.com/bfs/face/example.jpg"
+  }
+}

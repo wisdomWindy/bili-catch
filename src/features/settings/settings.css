@@ -1,0 +1,53 @@
+.settings-page { width: min(100%, 880px); padding-bottom: 40px; letter-spacing: 0; }
+.settings-page__header { margin-bottom: 18px; }
+.settings-page__header h1 { margin: 0; font-size: 24px; line-height: 1.3; letter-spacing: 0; }
+.settings-form { display: grid; }
+.settings-section { padding: 24px 0; border-top: 1px solid var(--color-border); }
+.settings-section:first-child { padding-top: 4px; border-top: 0; }
+.settings-section__header { margin-bottom: 8px; }
+.settings-section__header h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: 0; }
+.settings-section__body { display: grid; }
+.setting-row { display: grid; min-height: 58px; grid-template-columns: minmax(180px, 240px) minmax(280px, 1fr) 88px; align-items: center; column-gap: 18px; padding: 9px 0; }
+.setting-row__label { min-width: 0; color: var(--color-text); font-size: 14px; font-weight: 540; }
+.setting-row__label label { cursor: pointer; }
+.setting-row__label p { margin: 3px 0 0; color: var(--color-text-muted); font-size: 12px; font-weight: 400; }
+.setting-row__control, .path-control, .range-control { min-width: 0; }
+.setting-row select, .path-control input { width: 100%; min-height: 36px; padding: 0 10px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; font: inherit; letter-spacing: 0; }
+.setting-row select:focus-visible, .path-control input:focus-visible, .setting-row button:focus-visible, .setting-row input:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.path-control { display: grid; grid-template-columns: minmax(0, 1fr) 36px; gap: 8px; }
+.path-control input { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon-button, .command-button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; color: var(--color-on-brand); background: var(--color-brand); border: 0; border-radius: 6px; cursor: pointer; font: inherit; letter-spacing: 0; }
+.icon-button { width: 36px; padding: 0; }
+.command-button { padding: 0 12px; }
+.command-button--quiet { color: var(--color-info); background: transparent; border: 1px solid var(--color-border); }
+.icon-button:disabled, .command-button:disabled { cursor: not-allowed; opacity: 0.65; }
+.range-control { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; gap: 12px; }
+.range-control input { width: 100%; accent-color: var(--color-brand); }
+.range-control output { min-width: 42px; padding: 5px 6px; text-align: center; background: var(--color-surface-muted); border-radius: 5px; font-variant-numeric: tabular-nums; }
+.switch-control { width: 42px; height: 24px; accent-color: var(--color-brand); }
+.field-save-status { display: inline-flex; min-width: 88px; min-height: 22px; align-items: center; gap: 5px; color: var(--color-text-muted); font-size: 12px; }
+.field-save-status--saved { color: var(--color-success); }
+.field-save-status--error { color: var(--color-danger); }
+.field-save-status--saving { color: var(--color-info); }
+.about-action { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.version-value { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+.about-result { color: var(--color-success); font-size: 13px; }
+.about-result--error { color: var(--color-danger); }
+.settings-alert { display: flex; min-height: 42px; align-items: center; gap: 10px; margin-bottom: 16px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 6px; }
+.settings-alert--error { color: var(--color-danger); background: color-mix(in srgb, var(--color-danger) 8%, var(--color-surface)); }
+.settings-alert .command-button { min-height: 30px; margin-left: auto; }
+.settings-skeleton { display: grid; gap: 8px; }
+.setting-skeleton { display: grid; min-height: 58px; grid-template-columns: minmax(180px, 240px) minmax(280px, 1fr) 88px; align-items: center; gap: 18px; }
+.setting-skeleton span { height: 14px; background: var(--color-surface-muted); border-radius: 4px; }
+.setting-skeleton span:nth-child(2) { height: 36px; }
+
+@media (max-width: 899px) {
+  .setting-row, .setting-skeleton { grid-template-columns: minmax(180px, 200px) minmax(260px, 1fr) 88px; column-gap: 14px; }
+}
+
+@media (max-width: 759px) {
+  .setting-row, .setting-skeleton { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+  .setting-row { padding: 12px 0; }
+  .field-save-status { min-height: 18px; }
+  .setting-skeleton span:last-child { width: 88px; }
+}

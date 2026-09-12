@@ -1,0 +1,10 @@
+{
+  "code": 0,
+  "message": "0",
+  "data": {
+    "code": 0,
+    "message": "confirmed",
+    "url": "https://passport.bilibili.com/fixture-confirmed",
+    "refresh_token": "fixture-refresh"
+  }
+}

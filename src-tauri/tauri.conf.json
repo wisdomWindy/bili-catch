@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BiliCatch",
+  "version": "0.1.0",
+  "identifier": "com.bilicatch.app",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "BiliCatch",
+        "width": 1180,
+        "height": 760,
+        "minWidth": 860,
+        "minHeight": 600
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": ["binaries/ffmpeg"],
+    "createUpdaterArtifacts": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI3NTk2RUU4OEM3RTgxNQpSV1FWNk1lSTdwWjFBamUvdnBjakZtdlhVQ2dQS2xCYk1tRkhSK0IrR0lVcjlPNG10T1MwQWYvbQo=",
+      "endpoints": [
+        "https://github.com/wisdomWindy/bili-catch/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}
