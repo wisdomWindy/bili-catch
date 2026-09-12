@@ -60,8 +60,32 @@ pub(crate) fn validate_allowed_https_url(value: &str) -> Result<Url, AppError> {
     Ok(url)
 }
 
+fn normalize_pasted_url(value: &str) -> String {
+    let mut normalized = String::with_capacity(value.len());
+    let mut escaped = false;
+    for character in value.chars() {
+        if escaped && matches!(character, '?' | '&' | '=' | '_' | '#') {
+            normalized.push(character);
+            escaped = false;
+        } else {
+            if escaped {
+                normalized.push('\\');
+            }
+            escaped = character == '\\';
+            if !escaped {
+                normalized.push(character);
+            }
+        }
+    }
+    if escaped {
+        normalized.push('\\');
+    }
+    normalized
+}
+
 pub fn normalize_input(input: &str) -> Result<NormalizedInput, AppError> {
-    let value = input.trim();
+    let normalized = normalize_pasted_url(input.trim());
+    let value = normalized.as_str();
     if value.is_empty()
         || value
             .chars()
@@ -94,7 +118,11 @@ pub fn normalize_input(input: &str) -> Result<NormalizedInput, AppError> {
 
     let video_id = url
         .path_segments()
-        .and_then(|mut segments| segments.next_back())
+        .and_then(|segments| {
+            segments
+                .filter(|segment| !segment.is_empty())
+                .next_back()
+        })
         .and_then(parse_video_id)
         .ok_or_else(invalid_input)?;
     let requested_page = match url.query_pairs().find(|(key, _)| key == "p") {
@@ -150,6 +178,13 @@ mod tests {
                 }
             );
         }
+    }
+
+    #[test]
+    fn accepts_markdown_escaped_video_url() {
+        let input = "https://www.bilibili.com/video/BV1FNb366EH2/?spm\\_id_from=333.1007.top_right_bar_window_history.content.click\\&vd\\_source=80b00eb304b73285fc0a111a90e2b026";
+        let normalized = super::normalize_input(input).expect("escaped URL should normalize");
+        assert_eq!(normalized.video_id, VideoId::Bvid("BV1FNb366EH2".into()));
     }
 
     #[test]

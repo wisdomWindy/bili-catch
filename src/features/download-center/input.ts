@@ -24,8 +24,12 @@ function isSupportedUrl(value: string): boolean {
   }
 }
 
+function normalizePastedUrl(value: string): string {
+  return value.replace(/\\([?&=_#])/g, "$1");
+}
+
 export function normalizeParseInput(input: string): ParseInputResult {
-  const value = input.trim();
+  const value = normalizePastedUrl(input.trim());
   if (!value) return { ok: false, reason: "empty" };
   if ([...value].some((character) => /\s/.test(character) || character < " ")) {
     return { ok: false, reason: "invalid" };
