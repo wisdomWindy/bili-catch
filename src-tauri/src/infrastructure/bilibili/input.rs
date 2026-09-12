@@ -118,11 +118,7 @@ pub fn normalize_input(input: &str) -> Result<NormalizedInput, AppError> {
 
     let video_id = url
         .path_segments()
-        .and_then(|segments| {
-            segments
-                .filter(|segment| !segment.is_empty())
-                .next_back()
-        })
+        .and_then(|segments| segments.filter(|segment| !segment.is_empty()).next_back())
         .and_then(parse_video_id)
         .ok_or_else(invalid_input)?;
     let requested_page = match url.query_pairs().find(|(key, _)| key == "p") {

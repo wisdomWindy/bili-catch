@@ -27,7 +27,7 @@ pub fn run() {
                     infrastructure::bilibili::BilibiliAuthClient::new()
                         .map_err(|error| std::io::Error::other(error.message))?,
                 ),
-                Arc::new(infrastructure::auth::SystemCredentialStore::new()),
+                Arc::new(infrastructure::auth::InMemoryCredentialStore::new()),
                 Arc::new(services::auth::ports::SystemAuthClock::default()),
                 Arc::new(services::auth::ports::TokioAuthSleeper),
                 Arc::new(infrastructure::auth::TauriAuthEventSink::new(
