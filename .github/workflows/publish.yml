@@ -17,6 +17,28 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Verify FFmpeg sidecar
+        shell: pwsh
+        run: |
+          $ffmpegPath = Join-Path $env:GITHUB_WORKSPACE "src-tauri\binaries\ffmpeg-x86_64-pc-windows-msvc.exe"
+          if (-not (Test-Path -LiteralPath $ffmpegPath -PathType Leaf)) {
+            throw "FFmpeg sidecar is missing after checkout."
+          }
+
+          $expectedSize = 102856192
+          $actualSize = (Get-Item -LiteralPath $ffmpegPath).Length
+          if ($actualSize -ne $expectedSize) {
+            throw "FFmpeg sidecar size mismatch: expected $expectedSize bytes, got $actualSize bytes."
+          }
+
+          $expectedHash = "72A489ECCD008C2EC2C0A5856C5C75BC3D8BBFA90166C4566865C246445E6AA3"
+          $actualHash = (Get-FileHash -LiteralPath $ffmpegPath -Algorithm SHA256).Hash
+          if ($actualHash -ne $expectedHash) {
+            throw "FFmpeg sidecar SHA-256 mismatch."
+          }
 
       - name: Setup Node
         uses: actions/setup-node@v4
