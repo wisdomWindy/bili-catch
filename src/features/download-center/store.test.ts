@@ -112,12 +112,21 @@ describe("download center store", () => {
     expect(store.result?.title).toBe("Latest");
   });
 
-  it("uses its session cache and clear invalidates pending work", async () => {
-    const mock = service();
+  it("refreshes the result for every explicit parse and clear invalidates pending work", async () => {
+    const parseVideo = vi.fn()
+      .mockResolvedValueOnce(fixture)
+      .mockResolvedValueOnce({
+        ...fixture,
+        title: "Refreshed fixture",
+        requestedPage: 1,
+      });
     const store = useDownloadCenterStore();
-    await store.parse(mock, "BV1xx411c7BF");
-    await store.parse(mock, "BV1xx411c7BF");
-    expect(mock.parseVideo).toHaveBeenCalledTimes(1);
+    await store.parse({ parseVideo }, "BV1xx411c7BF");
+    await store.parse({ parseVideo }, "BV1xx411c7BF");
+
+    expect(parseVideo).toHaveBeenCalledTimes(2);
+    expect(store.result?.title).toBe("Refreshed fixture");
+    expect(store.selectedCids).toEqual([1001]);
     store.clear();
     expect(store.status).toBe("idle");
     expect(store.result).toBeNull();
@@ -141,12 +150,12 @@ describe("download center store", () => {
     expect(store.consumeVideoFallbackNotice()).toBe(true);
   });
 
-  it("shares a cache entry across equivalent BV ID and URL inputs", async () => {
+  it("refreshes equivalent BV ID and URL inputs independently", async () => {
     const mock = service();
     const store = useDownloadCenterStore();
     await store.parse(mock, "BV1xx411c7BF");
     await store.parse(mock, "https://www.bilibili.com/video/BV1xx411c7BF");
-    expect(mock.parseVideo).toHaveBeenCalledTimes(1);
+    expect(mock.parseVideo).toHaveBeenCalledTimes(2);
   });
 
   it("rejects a login-only capability even when selected directly", async () => {

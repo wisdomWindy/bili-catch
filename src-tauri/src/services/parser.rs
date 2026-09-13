@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 
@@ -23,7 +22,6 @@ pub(crate) struct ParserService {
     clock: Arc<dyn Clock>,
     auth: Arc<dyn AuthContextProvider>,
     wbi_cache: WbiKeyCache,
-    result_cache: Mutex<HashMap<String, ParseVideoResult>>,
 }
 
 impl ParserService {
@@ -45,7 +43,6 @@ impl ParserService {
             clock,
             auth,
             wbi_cache: WbiKeyCache::new(),
-            result_cache: Mutex::new(HashMap::new()),
         }
     }
 
@@ -113,32 +110,13 @@ impl ParserService {
     pub async fn parse(&self, input: &str) -> Result<ParseVideoResult, AppError> {
         let normalized = self.resolved_input(input).await?;
         let auth = self.auth.validated_context().await?;
-        let resource_key = match &normalized.video_id {
-            VideoId::Bvid(value) => format!("bvid:{value}:p{:?}", normalized.requested_page),
-            VideoId::Aid(value) => format!("aid:{value}:p{:?}", normalized.requested_page),
-            VideoId::ShortUrl(_) => unreachable!("short links are resolved before parsing"),
-        };
-        let cache_key = format!("{resource_key}:auth:{}", auth.revision());
-        if let Some(result) = self
-            .result_cache
-            .lock()
-            .ok()
-            .and_then(|cache| cache.get(&cache_key).cloned())
-        {
-            return Ok(result);
-        }
-
         let view = self.port.fetch_view(&normalized.video_id, &auth).await?;
         let part = select_part(&view, normalized.requested_page)?;
         let play = self
             .fetch_playurl_with_retry(&normalized.video_id, part.cid, &auth)
             .await?;
 
-        let result = adapt_parse_result(view, play, normalized.requested_page)?;
-        if let Ok(mut cache) = self.result_cache.lock() {
-            cache.insert(cache_key, result.clone());
-        }
-        Ok(result)
+        adapt_parse_result(view, play, normalized.requested_page)
     }
 }
 
@@ -316,9 +294,7 @@ mod tests {
     impl AuthContextProvider for FakeAuthContext {
         async fn validated_context(&self) -> Result<ValidatedAuthContext, AppError> {
             self.calls.fetch_add(1, Ordering::SeqCst);
-            Ok(ValidatedAuthContext::anonymous(
-                self.revision.load(Ordering::SeqCst),
-            ))
+            Ok(ValidatedAuthContext::anonymous())
         }
     }
 
@@ -403,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn retries_one_signature_failure_and_then_caches_the_result() {
+    fn retries_one_signature_failure_and_refreshes_each_parse() {
         tauri::async_runtime::block_on(async {
             let port = Arc::new(MockPort::new(1));
             let auth = Arc::new(FakeAuthContext::new(0));
@@ -413,8 +389,8 @@ mod tests {
             let second = service.parse("BV1xx411c7BF").await.unwrap();
 
             assert_eq!(first, second);
-            assert_eq!(port.view_calls.load(Ordering::SeqCst), 1);
-            assert_eq!(port.play_calls.load(Ordering::SeqCst), 2);
+            assert_eq!(port.view_calls.load(Ordering::SeqCst), 2);
+            assert_eq!(port.play_calls.load(Ordering::SeqCst), 3);
             assert_eq!(port.key_calls.load(Ordering::SeqCst), 2);
             assert_eq!(auth.calls.load(Ordering::SeqCst), 2);
         });
@@ -436,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn separates_result_cache_entries_by_auth_revision() {
+    fn refreshes_parse_after_auth_revision_changes() {
         tauri::async_runtime::block_on(async {
             let port = Arc::new(MockPort::new(0));
             let auth = Arc::new(FakeAuthContext::new(0));

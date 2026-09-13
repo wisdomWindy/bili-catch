@@ -1,7 +1,7 @@
 import { defineStore } from "pinia";
 import type { AppError } from "../../contracts/app-error";
 import { normalizeIpcError } from "../../contracts/app-error";
-import { normalizeParseInput, parseInputCacheKey } from "./input";
+import { normalizeParseInput } from "./input";
 import { defaultAudioProfile, isAudioProfileValid } from "./audio-options";
 import type { AudioProfileId } from "./audio-options";
 import type {
@@ -37,7 +37,6 @@ interface DownloadCenterState {
   outputDir: string;
   defaults: DownloadDefaults;
   requestToken: number;
-  resultCache: Record<string, ParseVideoResult>;
 }
 
 function optionIsAvailable(options: MediaOption[], id: string | null): boolean {
@@ -86,7 +85,6 @@ export const useDownloadCenterStore = defineStore("download-center", {
       defaultAudioFormat: "m4a",
     },
     requestToken: 0,
-    resultCache: {},
   }),
   getters: {
     canParse(state): boolean {
@@ -154,19 +152,12 @@ export const useDownloadCenterStore = defineStore("download-center", {
         return;
       }
       const token = ++this.requestToken;
-      const cacheKey = parseInputCacheKey(normalized.value) ?? normalized.value;
       this.normalizedInput = normalized.value;
       this.status = "parsing";
       this.error = null;
-      const cached = this.resultCache[cacheKey];
-      if (cached) {
-        if (token === this.requestToken) this.applyResult(cached);
-        return;
-      }
       try {
         const result = await service.parseVideo(normalized.value);
         if (token !== this.requestToken) return;
-        this.resultCache[cacheKey] = result;
         this.applyResult(result);
       } catch (error: unknown) {
         if (token !== this.requestToken) return;
@@ -275,7 +266,6 @@ export const useDownloadCenterStore = defineStore("download-center", {
       const previousAudioFormat = this.audioFormat;
       const previousAudioBitrate = this.audioBitrateId;
       this.authenticated = authenticated;
-      this.resultCache = {};
       this.videoFallbackNotice = false;
       if (!input) {
         this.reconcileAudioAvailability(authenticated);

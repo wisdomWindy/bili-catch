@@ -39,19 +39,3 @@ export function normalizeParseInput(input: string): ParseInputResult {
   }
   return { ok: false, reason: "invalid" };
 }
-
-export function parseInputCacheKey(input: string): string | null {
-  const normalized = normalizeParseInput(input);
-  if (!normalized.ok) return null;
-  const value = normalized.value;
-  if (bvidPattern.test(value)) return `bvid:${value}:p1`;
-  if (aidPattern.test(value)) return `aid:${value.slice(2)}:p1`;
-
-  const url = new URL(value);
-  if (url.hostname.toLowerCase() === "b23.tv") return `short:${url.toString()}`;
-  const segments = url.pathname.split("/").filter(Boolean);
-  const videoId = segments[segments.length - 1] ?? "";
-  const page = url.searchParams.get("p") ?? "1";
-  if (bvidPattern.test(videoId)) return `bvid:${videoId}:p${page}`;
-  return `aid:${videoId.slice(2)}:p${page}`;
-}

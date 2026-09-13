@@ -8,27 +8,18 @@ use super::{
 };
 
 pub(crate) struct ValidatedAuthContext {
-    revision: u64,
     credential: Option<StoredCredential>,
 }
 
 impl ValidatedAuthContext {
-    pub(crate) fn anonymous(revision: u64) -> Self {
-        Self {
-            revision,
-            credential: None,
-        }
+    pub(crate) fn anonymous() -> Self {
+        Self { credential: None }
     }
 
-    pub(crate) fn authenticated(revision: u64, credential: StoredCredential) -> Self {
+    pub(crate) fn authenticated(credential: StoredCredential) -> Self {
         Self {
-            revision,
             credential: Some(credential),
         }
-    }
-
-    pub(crate) fn revision(&self) -> u64 {
-        self.revision
     }
 
     pub(crate) fn credential(&self) -> Option<&StoredCredential> {
@@ -47,7 +38,6 @@ pub(crate) trait AuthContextProvider: Send + Sync {
 
 struct AuthContextCandidate {
     generation: u64,
-    revision: u64,
     status: AuthStatus,
     account: Option<AuthAccount>,
     credential: Option<StoredCredential>,
@@ -139,7 +129,6 @@ impl AuthManager {
         let state = self.state.lock().expect("auth manager lock poisoned");
         AuthContextCandidate {
             generation: state.generation,
-            revision: state.snapshot.revision,
             status: state.snapshot.status,
             account: state.snapshot.account.clone(),
             credential: state.credential.clone(),
@@ -172,7 +161,7 @@ impl AuthContextProvider for AuthManager {
         for _ in 0..2 {
             let candidate = self.context_candidate();
             let Some(credential) = candidate.credential else {
-                return Ok(ValidatedAuthContext::anonymous(candidate.revision));
+                return Ok(ValidatedAuthContext::anonymous());
             };
 
             match self.qr.validate_session(&credential).await? {
@@ -183,18 +172,11 @@ impl AuthContextProvider for AuthManager {
                     if candidate.status == AuthStatus::Authenticated
                         && candidate.account.as_ref() == Some(&account)
                     {
-                        return Ok(ValidatedAuthContext::authenticated(
-                            candidate.revision,
-                            credential,
-                        ));
+                        return Ok(ValidatedAuthContext::authenticated(credential));
                     }
                     let context_credential = credential.clone();
-                    let snapshot =
-                        self.commit_authenticated(candidate.generation, credential, account);
-                    return Ok(ValidatedAuthContext::authenticated(
-                        snapshot.revision,
-                        context_credential,
-                    ));
+                    self.commit_authenticated(candidate.generation, credential, account);
+                    return Ok(ValidatedAuthContext::authenticated(context_credential));
                 }
                 SessionValidation::Invalid => {
                     let _permit =
@@ -205,9 +187,11 @@ impl AuthContextProvider for AuthManager {
                         continue;
                     }
                     self.store.delete().await?;
-                    if let Some(snapshot) = self.invalidate_session_if_current(candidate.generation)
+                    if self
+                        .invalidate_session_if_current(candidate.generation)
+                        .is_some()
                     {
-                        return Ok(ValidatedAuthContext::anonymous(snapshot.revision));
+                        return Ok(ValidatedAuthContext::anonymous());
                     }
                 }
             }

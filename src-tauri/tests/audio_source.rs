@@ -4,12 +4,21 @@ use bilicatch_lib::services::audio::{select_audio_source, AudioSourceCandidate, 
 use bilicatch_lib::services::download::{MediaKind, MediaSourceCandidate};
 
 fn candidate(id: u32, kbps: u64, tier: AudioSourceTier, host: &str) -> AudioSourceCandidate {
+    candidate_with_bandwidth(id, kbps * 1_000, tier, host)
+}
+
+fn candidate_with_bandwidth(
+    id: u32,
+    bandwidth: u64,
+    tier: AudioSourceTier,
+    host: &str,
+) -> AudioSourceCandidate {
     AudioSourceCandidate {
         tier,
         media: MediaSourceCandidate {
             id,
             kind: MediaKind::Audio,
-            bandwidth: kbps * 1_000,
+            bandwidth,
             primary_url: format!("https://{host}/audio/{id}.m4s?token=fixture"),
             backup_urls: vec![format!("https://backup.{host}/audio/{id}.m4s")],
             mime_type: "audio/mp4".into(),
@@ -21,17 +30,17 @@ fn candidate(id: u32, kbps: u64, tier: AudioSourceTier, host: &str) -> AudioSour
 }
 
 #[test]
-fn anonymous_selection_is_capped_at_64_kbps() {
+fn anonymous_selection_accepts_returned_standard_lossy_bandwidth() {
     let candidates = vec![
-        candidate(
-            30280,
-            192,
+        candidate_with_bandwidth(
+            30232,
+            85_411,
             AudioSourceTier::Lossy,
             "upos-sz-mirrorcos.bilivideo.com",
         ),
-        candidate(
+        candidate_with_bandwidth(
             30216,
-            64,
+            65_971,
             AudioSourceTier::Lossy,
             "upos-sz-mirrorcos.bilivideo.com",
         ),
@@ -42,9 +51,9 @@ fn anonymous_selection_is_capped_at_64_kbps() {
         AudioOutputProfile::Mp3 { bitrate_kbps: 320 },
         false,
     )
-    .expect("anonymous users should receive the best permitted source");
+    .expect("returned standard lossy sources should remain available anonymously");
 
-    assert_eq!(selected.media.id, 30216);
+    assert_eq!(selected.media.id, 30232);
 }
 
 #[test]

@@ -89,15 +89,11 @@ pub fn select_audio_source(
                     "Lossless audio is unavailable for the current account or video",
                 )
             })?,
-        AudioOutputProfile::Mp3 { .. } | AudioOutputProfile::M4aOriginal => {
-            let maximum_kbps = if authenticated { 192 } else { 64 };
-            candidates
-                .iter()
-                .filter(|candidate| candidate.tier == AudioSourceTier::Lossy)
-                .filter(|candidate| candidate.media.bandwidth / 1_000 <= maximum_kbps)
-                .max_by_key(|candidate| candidate.media.bandwidth)
-                .ok_or_else(source_unavailable)?
-        }
+        AudioOutputProfile::Mp3 { .. } | AudioOutputProfile::M4aOriginal => candidates
+            .iter()
+            .filter(|candidate| candidate.tier == AudioSourceTier::Lossy)
+            .max_by_key(|candidate| candidate.media.bandwidth)
+            .ok_or_else(source_unavailable)?,
     };
 
     validate_candidate(selected)?;

@@ -309,8 +309,8 @@ mod tests {
         let credential =
             StoredCredential::try_new("DedeUserID=9001; SESSDATA=fixture-session".into(), None)
                 .unwrap();
-        let authenticated = ValidatedAuthContext::authenticated(1, credential);
-        let anonymous = ValidatedAuthContext::anonymous(2);
+        let authenticated = ValidatedAuthContext::authenticated(credential);
+        let anonymous = ValidatedAuthContext::anonymous();
 
         let authenticated_request = client
             .authenticated_get(
@@ -373,8 +373,8 @@ mod tests {
     fn public_anonymous_parse_smoke() {
         tauri::async_runtime::block_on(async {
             let client = BilibiliClient::new().expect("client should initialize");
-            let video_id = VideoId::Bvid("BV1xx411c7BF".into());
-            let auth = ValidatedAuthContext::anonymous(0);
+            let video_id = VideoId::Bvid("BV1FNb366EH2".into());
+            let auth = ValidatedAuthContext::anonymous();
             let view = client
                 .fetch_view(&video_id, &auth)
                 .await

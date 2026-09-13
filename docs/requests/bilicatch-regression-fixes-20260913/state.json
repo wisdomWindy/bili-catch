@@ -1,0 +1,34 @@
+{
+  "request_id": "bilicatch-regression-fixes-20260913",
+  "source": {
+    "type": "direct_user_defect_report",
+    "date": "2026-09-13"
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-regression-fixes-20260913/request.md",
+    "bugfix_source": "docs/requests/bilicatch-regression-fixes-20260913/artifacts/bugfix-source.md",
+    "prd_snapshot": "docs/requests/bilicatch-regression-fixes-20260913/artifacts/prd-snapshot.md",
+    "code_context": "docs/requests/bilicatch-regression-fixes-20260913/artifacts/code-context.md",
+    "spec": "docs/requests/bilicatch-regression-fixes-20260913/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-regression-fixes-20260913/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-regression-fixes-20260913/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-regression-fixes-20260913/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-regression-fixes-20260913/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-regression-fixes-20260913/verification/verification.md",
+    "review": "docs/requests/bilicatch-regression-fixes-20260913/review/review.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 8,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "stage_completed"
+  }
+}

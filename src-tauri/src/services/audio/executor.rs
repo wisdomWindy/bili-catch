@@ -231,16 +231,19 @@ impl AudioExecutor {
                 return Err(error);
             }
         };
-        let accepted = self.reporter.report(
+        self.workspace.cleanup(&paths)?;
+        if !std::fs::metadata(&output_path)
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+        {
+            return Err(AppError::internal("The audio output is unavailable"));
+        }
+        self.reporter.report(
             &spec.task_id,
             &spec.attempt_id,
             ExecutionUpdate::Completed {
                 output_path: output_path.to_string_lossy().into_owned(),
             },
         )?;
-        if accepted {
-            let _ = self.workspace.cleanup(&paths);
-        }
         Ok(())
     }
 

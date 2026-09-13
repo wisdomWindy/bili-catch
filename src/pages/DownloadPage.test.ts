@@ -157,4 +157,37 @@ describe("DownloadPage", () => {
     expect(sessionInfo).toHaveBeenCalledOnce();
     expect(sessionInfo).toHaveBeenCalledWith("登录已失效，已切换为匿名解析");
   });
+
+  it("refreshes login-gated qualities when authentication succeeds", async () => {
+    const anonymousResult: ParseVideoResult = {
+      ...result,
+      qualities: [{ id: "80", label: "1080P", requiresLogin: true }],
+      videoVariants: [],
+    };
+    const parseVideo = vi.fn()
+      .mockResolvedValueOnce(anonymousResult)
+      .mockResolvedValueOnce(result);
+    const { wrapper, pinia } = render(parseVideo);
+    const auth = useAuthStore(pinia);
+
+    await wrapper.get("#video-input").setValue("BV1xx411c7BF");
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(wrapper.get("option[value='80']").attributes("disabled")).toBeDefined();
+    expect(wrapper.get("option[value='80']").text()).toContain("需登录");
+
+    auth.snapshot = {
+      revision: 1,
+      status: "authenticated",
+      qrContent: null,
+      expiresAt: null,
+      account: { mid: "9001", name: "Fixture", avatarUrl: null },
+      error: null,
+    };
+    await flushPromises();
+
+    expect(parseVideo).toHaveBeenCalledTimes(2);
+    expect(wrapper.get("option[value='80']").attributes("disabled")).toBeUndefined();
+    expect(wrapper.get("option[value='80']").text()).not.toContain("需登录");
+  });
 });

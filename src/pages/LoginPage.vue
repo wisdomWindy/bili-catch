@@ -14,6 +14,7 @@ const store = useAuthStore();
 const logoutOpen = ref(false);
 let autoStartedRevision: number | null = null;
 let returnTimer: number | undefined;
+let loginStartedOnPage = false;
 
 const activeLogin = computed(() => ["requesting", "waiting_scan", "waiting_confirm"].includes(store.snapshot.status));
 const displayStatus = computed(() => store.error && store.snapshot.status === "anonymous" ? "error" : store.snapshot.status);
@@ -28,14 +29,26 @@ const returnTarget = source && ["download", "tasks", "settings"].includes(String
 watch(() => [store.snapshot.status, store.snapshot.revision] as const, ([status, revision]) => {
   if (status === "anonymous" && autoStartedRevision !== revision && !store.pending.start) {
     autoStartedRevision = revision;
-    void store.start();
+    startLogin();
   }
-  if (returnTimer !== undefined) window.clearTimeout(returnTimer);
+  if (status !== "authenticated" && returnTimer !== undefined) {
+    window.clearTimeout(returnTimer);
+    returnTimer = undefined;
+  }
   const holdDemo = import.meta.env.DEV && route.query.hold === "1";
-  if (status === "authenticated" && !holdDemo) {
-    returnTimer = window.setTimeout(() => { void router.replace(returnTarget); }, 800);
+  if (status === "authenticated" && loginStartedOnPage && !holdDemo && returnTimer === undefined) {
+    returnTimer = window.setTimeout(() => {
+      returnTimer = undefined;
+      loginStartedOnPage = false;
+      void router.replace(returnTarget);
+    }, 800);
   }
 }, { immediate: true });
+
+function startLogin() {
+  loginStartedOnPage = true;
+  void store.start();
+}
 
 async function confirmLogout() {
   await store.logout();
@@ -68,7 +81,7 @@ onBeforeUnmount(() => {
       :expires-at="store.snapshot.expiresAt"
       :pending="store.pending.start"
       :error-message="errorMessage"
-      @refresh="store.start"
+      @refresh="startLogin"
     />
 
     <LogoutConfirmDialog

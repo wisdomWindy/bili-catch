@@ -249,12 +249,22 @@ fn video_only_finalizes_without_mux() {
 
         assert!(result.is_ok());
         assert_eq!(*muxer.calls.lock().unwrap(), 0);
-        assert!(reporter
+        let completed_path = reporter
             .updates
             .lock()
             .unwrap()
             .iter()
-            .any(|update| matches!(update, ExecutionUpdate::Completed { .. })));
+            .find_map(|update| match update {
+                ExecutionUpdate::Completed { output_path } => {
+                    Some(Path::new(output_path).to_path_buf())
+                }
+                _ => None,
+            })
+            .expect("video-only execution should report a completed output path");
+        assert!(
+            std::fs::metadata(&completed_path).is_ok_and(|metadata| metadata.len() > 0),
+            "finalized output is empty or missing: {completed_path:?}"
+        );
     });
 }
 
@@ -289,6 +299,22 @@ fn video_audio_reports_processing_muxes_once_and_splits_budget() {
             .unwrap()
             .iter()
             .any(|update| matches!(update, ExecutionUpdate::Processing { .. })));
+        let completed_path = reporter
+            .updates
+            .lock()
+            .unwrap()
+            .iter()
+            .find_map(|update| match update {
+                ExecutionUpdate::Completed { output_path } => {
+                    Some(Path::new(output_path).to_path_buf())
+                }
+                _ => None,
+            })
+            .expect("video-audio execution should report a completed output path");
+        assert!(
+            std::fs::metadata(&completed_path).is_ok_and(|metadata| metadata.len() > 0),
+            "muxed output is empty or missing: {completed_path:?}"
+        );
     });
 }
 

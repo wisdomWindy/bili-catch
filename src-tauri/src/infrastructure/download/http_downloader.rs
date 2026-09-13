@@ -2,7 +2,7 @@ use std::{fs::OpenOptions, io::Write, sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use reqwest::{
-    header::{CONTENT_RANGE, ETAG, LOCATION, RANGE},
+    header::{CONTENT_RANGE, ETAG, LOCATION, RANGE, REFERER},
     redirect::Policy,
     Client, Response, StatusCode,
 };
@@ -72,7 +72,10 @@ impl HttpByteDownloader {
     pub(super) async fn request(&self, value: &str, offset: u64) -> Result<Response, AppError> {
         let mut url = (self.validate_url)(value)?;
         for redirect_count in 0..=5 {
-            let mut request = self.client.get(url.clone());
+            let mut request = self
+                .client
+                .get(url.clone())
+                .header(REFERER, "https://www.bilibili.com/");
             if offset > 0 {
                 request = request.header(RANGE, format!("bytes={offset}-"));
             }
@@ -522,6 +525,27 @@ mod tests {
             }),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn sends_bilibili_referer_with_every_media_request() {
+        tauri::async_runtime::block_on(async {
+            let (url, requests) = serve(vec![
+                "HTTP/1.1 302 Found\r\nLocation: /redirected.m4s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 206 Partial Content\r\nContent-Length: 1\r\nContent-Range: bytes 0-0/1\r\nConnection: close\r\n\r\nx",
+            ]);
+
+            let response = downloader().request(&url, 0).await.unwrap();
+
+            assert_eq!(response.status(), reqwest::StatusCode::PARTIAL_CONTENT);
+            let requests = requests.lock().unwrap();
+            assert_eq!(requests.len(), 2);
+            for request in requests.iter() {
+                assert!(request
+                    .to_ascii_lowercase()
+                    .contains("referer: https://www.bilibili.com/\r\n"));
+            }
+        });
     }
 
     #[test]

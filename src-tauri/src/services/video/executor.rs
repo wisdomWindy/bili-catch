@@ -235,16 +235,19 @@ impl VideoExecutor {
             DownloadOutcome::Cancelled => self.report_cancelled(spec, paths),
             DownloadOutcome::Completed => {
                 let output_path = self.workspace.finalize_video_only(paths)?;
-                let accepted = self.reporter.report(
+                self.workspace.cleanup(paths)?;
+                if !std::fs::metadata(&output_path)
+                    .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+                {
+                    return Err(AppError::internal("The video output is unavailable"));
+                }
+                self.reporter.report(
                     &spec.task_id,
                     &spec.attempt_id,
                     ExecutionUpdate::Completed {
                         output_path: output_path.to_string_lossy().into_owned(),
                     },
                 )?;
-                if accepted {
-                    let _ = self.workspace.cleanup(paths);
-                }
                 Ok(())
             }
         }
@@ -285,16 +288,19 @@ impl VideoExecutor {
             return self.report_cancelled(spec, paths);
         }
         let output_path = self.workspace.finalize_processed(paths)?;
-        let accepted = self.reporter.report(
+        self.workspace.cleanup(paths)?;
+        if !std::fs::metadata(&output_path)
+            .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
+        {
+            return Err(AppError::internal("The video output is unavailable"));
+        }
+        self.reporter.report(
             &spec.task_id,
             &spec.attempt_id,
             ExecutionUpdate::Completed {
                 output_path: output_path.to_string_lossy().into_owned(),
             },
         )?;
-        if accepted {
-            let _ = self.workspace.cleanup(paths);
-        }
         Ok(())
     }
 

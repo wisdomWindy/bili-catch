@@ -5,6 +5,7 @@ import { createMemoryHistory } from "vue-router";
 import { createAppRouter } from "../app/router";
 import { createAppI18n } from "../locales";
 import { useAuthStore } from "../features/authentication/store";
+import type { AuthSnapshot } from "../features/authentication/contracts";
 import LoginPage from "./LoginPage.vue";
 
 const panelStubs = {
@@ -17,13 +18,14 @@ const panelStubs = {
   LogoutConfirmDialog: { template: "<div />" },
 };
 
-async function render(path: string) {
+async function render(path: string, initialSnapshot?: AuthSnapshot) {
   const pinia = createPinia();
   setActivePinia(pinia);
   const router = createAppRouter(createMemoryHistory());
   await router.push(path);
   await router.isReady();
   const store = useAuthStore();
+  if (initialSnapshot) store.snapshot = initialSnapshot;
   const wrapper = mount(LoginPage, {
     global: { plugins: [pinia, router, createAppI18n()], stubs: panelStubs },
   });
@@ -50,7 +52,13 @@ describe("LoginPage", () => {
   });
 
   it("returns to a valid source route 800ms after authentication", async () => {
-    const { router, store } = await render("/login?from=/tasks");
+    const { wrapper, router, store } = await render("/login?from=/tasks");
+    await wrapper.get("[data-testid='refresh-stub']").trigger("click");
+    store.snapshot = {
+      ...store.snapshot,
+      revision: 4,
+      status: "waiting_scan",
+    };
     store.snapshot = {
       revision: 5,
       status: "authenticated",
@@ -65,7 +73,7 @@ describe("LoginPage", () => {
     expect(router.currentRoute.value.path).toBe("/tasks");
   });
 
-  it("returns a direct login visit to download after authentication", async () => {
+  it("keeps a restoring session on the account page after authentication", async () => {
     const { router, store } = await render("/login");
     store.snapshot = {
       revision: 5,
@@ -78,7 +86,23 @@ describe("LoginPage", () => {
     await flushPromises();
     await vi.advanceTimersByTimeAsync(800);
 
-    expect(router.currentRoute.value.path).toBe("/download");
+    expect(router.currentRoute.value.path).toBe("/login");
+  });
+
+  it("keeps an initially authenticated account page open", async () => {
+    const authenticated: AuthSnapshot = {
+      revision: 5,
+      status: "authenticated",
+      qrContent: null,
+      expiresAt: null,
+      account: { mid: "9001", name: "Fixture", avatarUrl: null },
+      error: null,
+    };
+    const { router } = await render("/login?from=/tasks", authenticated);
+
+    await vi.advanceTimersByTimeAsync(801);
+
+    expect(router.currentRoute.value.path).toBe("/login");
   });
 
   it("maps backend errors to localized public copy", async () => {
