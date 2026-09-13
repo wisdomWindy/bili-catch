@@ -60,3 +60,18 @@ fn close_and_notification_policies_are_stable_and_private() {
         }
     );
 }
+
+#[test]
+fn tray_uses_the_default_application_icon() {
+    let app_source = include_str!("../src/lib.rs");
+    let tray_builder = app_source
+        .split("tauri::tray::TrayIconBuilder::new()")
+        .nth(1)
+        .and_then(|source| source.split(".build(app)?").next())
+        .expect("tray builder source should be present");
+
+    assert!(
+        tray_builder.contains(".icon(") && tray_builder.contains("app.default_window_icon()"),
+        "the tray icon must reuse Tauri's bundled application icon"
+    );
+}

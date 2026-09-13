@@ -95,6 +95,11 @@ pub fn run() {
                 .items(&[&show_window, &check_updates, &quit])
                 .build()?;
             tauri::tray::TrayIconBuilder::new()
+                .icon(
+                    app.default_window_icon()
+                        .cloned()
+                        .expect("bundled application icon should be available"),
+                )
                 .menu(&tray_menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id().as_ref() {
