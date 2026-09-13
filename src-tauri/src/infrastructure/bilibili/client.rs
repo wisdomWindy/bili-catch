@@ -299,8 +299,11 @@ mod tests {
         MAX_RESPONSE_BYTES,
     };
     use crate::infrastructure::bilibili::{
-        adapt_parse_result, select_part, Clock, SystemClock, VideoId,
+        adapt_audio_metadata, adapt_audio_source_candidates, adapt_parse_result, select_part,
+        validate_media_url, Clock, SystemClock, VideoId,
     };
+    use crate::models::AudioOutputProfile;
+    use crate::services::audio::select_audio_source;
     use crate::services::auth::{context::ValidatedAuthContext, ports::StoredCredential};
 
     #[test]
@@ -388,6 +391,16 @@ mod tests {
                 .fetch_playurl(&video_id, part.cid, &key, SystemClock.now_seconds(), &auth)
                 .await
                 .expect("media capabilities should load");
+            select_audio_source(
+                &adapt_audio_source_candidates(&play),
+                AudioOutputProfile::M4aOriginal,
+                false,
+            )
+            .expect("anonymous playback should expose a standard audio source");
+            let metadata = adapt_audio_metadata(&view).expect("audio metadata should adapt");
+            let cover = validate_media_url(&metadata.cover_url)
+                .expect("the normalized cover should remain trusted");
+            assert_eq!(cover.scheme(), "https");
             let result = adapt_parse_result(view, play, None).expect("response should adapt");
             assert!(result
                 .qualities

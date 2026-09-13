@@ -1,6 +1,6 @@
 [package]
 name = "bilicatch"
-version = "0.1.6"
+version = "0.1.7"
 description = "BiliCatch desktop downloader"
 authors = ["BiliCatch contributors"]
 edition = "2021"

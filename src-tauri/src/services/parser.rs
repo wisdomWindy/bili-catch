@@ -4,9 +4,8 @@ use async_trait::async_trait;
 
 use crate::infrastructure::bilibili::{
     adapt_audio_metadata, adapt_audio_source_candidates, adapt_parse_result,
-    adapt_video_source_candidates, normalize_input, select_part, validate_media_url,
-    BilibiliClient, BilibiliPort, Clock, NormalizedInput, PortError, SystemClock, VideoId, WbiKey,
-    WbiKeyCache,
+    adapt_video_source_candidates, normalize_input, select_part, BilibiliClient, BilibiliPort,
+    Clock, NormalizedInput, PortError, SystemClock, VideoId, WbiKey, WbiKeyCache,
 };
 use crate::models::{AppError, AppErrorCode, AudioOutputProfile, DownloadMode, ParseVideoResult};
 use crate::services::audio::{
@@ -178,8 +177,7 @@ impl AudioSourcePort for ParserService {
             request.output_profile,
             auth.is_authenticated(),
         )?;
-        let metadata = adapt_audio_metadata(&view);
-        validate_media_url(&metadata.cover_url)?;
+        let metadata = adapt_audio_metadata(&view)?;
         Ok(AudioSourceBundle { source, metadata })
     }
 }
@@ -321,7 +319,7 @@ mod tests {
 
     fn view_fixture() -> ViewData {
         serde_json::from_str(r#"{
-          "bvid":"BV1xx411c7BF","aid":170001,"title":"Fixture","pic":"https://i0.hdslb.com/a.jpg",
+          "bvid":"BV1xx411c7BF","aid":170001,"title":"Fixture","pic":"http://i0.hdslb.com/a.jpg",
           "duration":90,"owner":{"name":"Owner"},"pages":[{"cid":1001,"page":1,"part":"P1","duration":90}]
         }"#).unwrap()
     }
@@ -463,6 +461,7 @@ mod tests {
             let second = AudioSourcePort::resolve(&service, &request).await.unwrap();
 
             assert_eq!(first.source.media.id, 30216);
+            assert_eq!(first.metadata.cover_url, "https://i0.hdslb.com/a.jpg");
             assert_eq!(second.source.media.id, 30216);
             assert_eq!(port.view_calls.load(Ordering::SeqCst), 2);
             assert_eq!(port.play_calls.load(Ordering::SeqCst), 2);

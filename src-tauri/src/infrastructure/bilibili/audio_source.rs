@@ -1,7 +1,13 @@
+use url::Url;
+
+use crate::models::{AppError, AppErrorCode};
 use crate::services::audio::{AudioMetadata, AudioSourceCandidate, AudioSourceTier};
 use crate::services::download::{MediaKind, MediaSourceCandidate};
 
-use super::raw::{PlayData, RawAudioStream, ViewData};
+use super::{
+    raw::{PlayData, RawAudioStream, ViewData},
+    validate_media_url,
+};
 
 fn adapt_stream(stream: &RawAudioStream, tier: AudioSourceTier) -> AudioSourceCandidate {
     AudioSourceCandidate {
@@ -40,8 +46,20 @@ pub(crate) fn adapt_audio_source_candidates(play: &PlayData) -> Vec<AudioSourceC
     candidates
 }
 
-pub(crate) fn adapt_audio_metadata(view: &ViewData) -> AudioMetadata {
-    AudioMetadata {
+fn invalid_cover_url() -> AppError {
+    AppError::new(AppErrorCode::E004, "The audio cover is unavailable")
+}
+
+fn normalize_cover_url(value: &str) -> Result<String, AppError> {
+    let mut url = Url::parse(value).map_err(|_| invalid_cover_url())?;
+    if url.scheme() == "http" {
+        url.set_scheme("https").map_err(|_| invalid_cover_url())?;
+    }
+    validate_media_url(url.as_str()).map(|url| url.to_string())
+}
+
+pub(crate) fn adapt_audio_metadata(view: &ViewData) -> Result<AudioMetadata, AppError> {
+    Ok(AudioMetadata {
         title: if view.title.trim().is_empty() {
             view.bvid.clone()
         } else {
@@ -52,14 +70,15 @@ pub(crate) fn adapt_audio_metadata(view: &ViewData) -> AudioMetadata {
         } else {
             view.owner.name.trim().to_owned()
         },
-        cover_url: view.pic.clone(),
-    }
+        cover_url: normalize_cover_url(&view.pic)?,
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::{adapt_audio_metadata, adapt_audio_source_candidates};
     use crate::infrastructure::bilibili::raw::{PlayData, ViewData};
+    use crate::models::AppErrorCode;
     use crate::services::audio::AudioSourceTier;
     use crate::services::download::MediaKind;
 
@@ -100,16 +119,67 @@ mod tests {
         let view: ViewData = serde_json::from_str(
             r#"{
               "bvid":"BV1xx411c7BF","aid":170001,"title":"  ",
-              "pic":"https://i0.hdslb.com/cover.jpg","duration":90,
+              "pic":"http://i0.hdslb.com/cover.jpg?token=fixture","duration":90,
               "owner":{"name":""},"pages":[]
             }"#,
         )
         .expect("fixture should deserialize");
 
-        let metadata = adapt_audio_metadata(&view);
+        let metadata = adapt_audio_metadata(&view).expect("trusted cover should adapt");
 
         assert_eq!(metadata.title, "BV1xx411c7BF");
         assert_eq!(metadata.uploader, "Bilibili");
-        assert_eq!(metadata.cover_url, "https://i0.hdslb.com/cover.jpg");
+        assert_eq!(
+            metadata.cover_url,
+            "https://i0.hdslb.com/cover.jpg?token=fixture"
+        );
+    }
+
+    #[test]
+    fn preserves_valid_https_audio_cover_url() {
+        let view: ViewData = serde_json::from_str(
+            r#"{
+              "bvid":"BV1xx411c7BF","aid":170001,"title":"Fixture",
+              "pic":"https://i0.hdslb.com/cover.jpg?token=fixture","duration":90,
+              "owner":{"name":"Uploader"},"pages":[]
+            }"#,
+        )
+        .expect("fixture should deserialize");
+
+        let metadata = adapt_audio_metadata(&view).expect("trusted cover should adapt");
+
+        assert_eq!(
+            metadata.cover_url,
+            "https://i0.hdslb.com/cover.jpg?token=fixture"
+        );
+    }
+
+    #[test]
+    fn rejects_unsafe_audio_cover_urls() {
+        for cover_url in [
+            "",
+            "/cover.jpg",
+            "ftp://i0.hdslb.com/cover.jpg",
+            "http://example.com/cover.jpg",
+            "http://user:password@i0.hdslb.com/cover.jpg",
+            "http://i0.hdslb.com/cover.jpg#fragment",
+        ] {
+            let mut view: ViewData = serde_json::from_str(
+                r#"{
+                  "bvid":"BV1xx411c7BF","aid":170001,"title":"Fixture",
+                  "pic":"https://i0.hdslb.com/cover.jpg","duration":90,
+                  "owner":{"name":"Uploader"},"pages":[]
+                }"#,
+            )
+            .expect("fixture should deserialize");
+            view.pic = cover_url.into();
+
+            let error = match adapt_audio_metadata(&view) {
+                Ok(_) => panic!("unsafe cover URL should be rejected"),
+                Err(error) => error,
+            };
+
+            assert_eq!(error.code, AppErrorCode::E004);
+        }
     }
 }
