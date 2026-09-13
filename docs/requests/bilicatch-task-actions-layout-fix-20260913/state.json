@@ -1,0 +1,42 @@
+{
+  "request_id": "bilicatch-task-actions-layout-fix-20260913",
+  "source": {
+    "type": "direct_user_defect_report",
+    "date": "2026-09-13",
+    "evidence": "USER-DEFECT-01"
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-task-actions-layout-fix-20260913/request.md",
+    "bugfix_source": "docs/requests/bilicatch-task-actions-layout-fix-20260913/artifacts/bugfix-source.md",
+    "prd_snapshot": "docs/requests/bilicatch-task-actions-layout-fix-20260913/artifacts/prd-snapshot.md",
+    "code_context": "docs/requests/bilicatch-task-actions-layout-fix-20260913/artifacts/code-context.md",
+    "page_design": "docs/requests/bilicatch-task-actions-layout-fix-20260913/design/page-design.md",
+    "spec": "docs/requests/bilicatch-task-actions-layout-fix-20260913/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-task-actions-layout-fix-20260913/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-task-actions-layout-fix-20260913/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-task-actions-layout-fix-20260913/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-task-actions-layout-fix-20260913/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-task-actions-layout-fix-20260913/verification/verification.md",
+    "review": "docs/requests/bilicatch-task-actions-layout-fix-20260913/review/review.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "speed_profile": {
+    "level": "S1 local",
+    "reason": "单个任务列表样式链的局部缺陷，但需要多宽度浏览器验证响应式边界。",
+    "context_budget": "narrow",
+    "artifact_density": "compact"
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 7,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}
