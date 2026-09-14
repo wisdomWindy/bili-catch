@@ -15,7 +15,8 @@
 
 - Windows x64 uses the Git LFS tracked FFmpeg 9.0.1 sidecar and verifies its size and SHA-256 before bundling.
 - macOS builds compile FFmpeg 9.0.1 and LAME 3.100 from pinned source archives on the matching native runner.
-- macOS builds verify source SHA-256 values, Mach-O architecture, dynamic dependencies, `libmp3lame`, and a real AAC-to-MP3 smoke test.
+- macOS builds target macOS 11.0 or later and verify source SHA-256 values, Mach-O architecture, deployment target, dynamic dependencies and `libmp3lame`.
+- Each generated DMG is mounted before publication, and its packaged FFmpeg executable must pass real stream-copy mux and AAC-to-MP3 smoke tests.
 - The FFmpeg and LAME source archives are attached to each Release alongside the installers.
 
 ## Required repository secrets
@@ -32,5 +33,5 @@ No Windows code-signing secret is used by this workflow.
 1. Update `src-tauri/tauri.conf.json` version to the next SemVer value.
 2. Commit and push the change.
 3. Push a matching tag, for example `v0.2.0`.
-4. GitHub Actions runs `.github/workflows/publish.yml` and publishes Windows x64, macOS Intel and macOS Apple Silicon bundles plus updater signature artifacts.
-5. The configured endpoint becomes available at `/releases/latest/download/latest.json` after the Release is published.
+4. GitHub Actions builds into a draft Release, then validates Windows x64, macOS Intel and macOS Apple Silicon bundles, updater signatures, source archives and `latest.json`.
+5. The workflow publishes the draft only after every validation passes; the configured endpoint then becomes available at `/releases/latest/download/latest.json`.

@@ -17,7 +17,7 @@ BiliCatch 是一个基于 Tauri 2、Vue 3、TypeScript 和 Rust 的哔哩哔哩�
 
 ## 当前发布状态
 
-- 当前正式发布目标为 Windows x64 NSIS、macOS Intel DMG 和 macOS Apple Silicon DMG 安装包。
+- 当前正式发布目标为 Windows x64 NSIS、macOS Intel DMG 和 macOS Apple Silicon DMG 安装包；macOS 最低支持版本为 11.0。
 - GitHub Actions 通过推送 v* 版本标签触发发布，产物上传到 GitHub Releases。
 - Windows 安装包目前未配置 Authenticode 证书，首次安装可能出现 SmartScreen“未知发布者”提示。请确认下载地址来自本仓库后，再选择“更多信息 → 仍要运行”。
 - macOS 安装包目前未配置 Apple Developer 签名与公证，首次启动可能需要在系统设置中手动允许。

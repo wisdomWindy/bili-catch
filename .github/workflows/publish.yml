@@ -9,32 +9,128 @@ permissions:
   contents: write
 
 jobs:
-  publish-desktop:
+  prepare-release:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.release_id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Verify tag and package versions
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const expected = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+          const versions = {
+            "package.json": JSON.parse(fs.readFileSync("package.json", "utf8")).version,
+            "package-lock.json": JSON.parse(fs.readFileSync("package-lock.json", "utf8")).packages[""].version,
+            "src-tauri/tauri.conf.json": JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8")).version,
+          };
+
+          const cargoToml = fs.readFileSync("src-tauri/Cargo.toml", "utf8");
+          versions["src-tauri/Cargo.toml"] = cargoToml.match(
+            /^\[package\][\s\S]*?^version\s*=\s*"([^"]+)"/m,
+          )?.[1];
+
+          const cargoLock = fs.readFileSync("src-tauri/Cargo.lock", "utf8");
+          versions["src-tauri/Cargo.lock"] = cargoLock
+            .split("[[package]]")
+            .find((section) => /^name = "bilicatch"$/m.test(section))
+            ?.match(/^version = "([^"]+)"$/m)?.[1];
+
+          const mismatches = Object.entries(versions).filter(([, version]) => version !== expected);
+          if (!expected || mismatches.length > 0) {
+            console.error(`Tag version: ${expected || "<empty>"}`);
+            for (const [file, version] of Object.entries(versions)) {
+              console.error(`${file}: ${version || "<missing>"}`);
+            }
+            process.exit(1);
+          }
+          NODE
+
+      - name: Create or refresh draft release
+        id: release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/release-body.md" <<'BODY'
+          Changes:
+          - Settings remain scrollable when the application window is small.
+          - Bilibili URLs copied before startup or while the app is open are detected, filled into the download input, and parsed automatically.
+
+          Downloads:
+          - Windows x64: NSIS installer (`.exe`)
+          - macOS Intel: disk image (`x64.dmg`, macOS 11 or later)
+          - macOS Apple Silicon: disk image (`aarch64.dmg`, macOS 11 or later)
+
+          The Windows installer is not Authenticode-signed. The macOS disk images are not Apple Developer signed or notarized. Only bypass an operating-system warning after verifying that the file came from this repository.
+
+          FFmpeg 9.0.1 and LAME 3.100 corresponding source archives are attached for the bundled GPLv3 component.
+          BODY
+
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" --jq .id 2>/dev/null || true)"
+          if [[ -n "$release_id" ]]; then
+            is_draft="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq .draft)"
+            if [[ "$is_draft" != "true" ]]; then
+              echo "Release $GITHUB_REF_NAME is already public." >&2
+              exit 1
+            fi
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+              --raw-field name="BiliCatch $GITHUB_REF_NAME" \
+              --raw-field body="$(<"$RUNNER_TEMP/release-body.md")" \
+              --field draft=true \
+              --field prerelease=false \
+              --silent
+          else
+            release_id="$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              --raw-field tag_name="$GITHUB_REF_NAME" \
+              --raw-field target_commitish="$GITHUB_SHA" \
+              --raw-field name="BiliCatch $GITHUB_REF_NAME" \
+              --raw-field body="$(<"$RUNNER_TEMP/release-body.md")" \
+              --field draft=true \
+              --field prerelease=false \
+              --jq .id)"
+          fi
+          echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
+
+  build-and-upload:
+    needs: prepare-release
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - runner: windows-latest
             platform: windows
             target: x86_64-pc-windows-msvc
             bundles: nsis
+            macos_deployment_target: ""
           - runner: macos-15-intel
             platform: macos
             target: x86_64-apple-darwin
             bundles: dmg
+            macos_deployment_target: "11.0"
           - runner: macos-15
             platform: macos
             target: aarch64-apple-darwin
             bundles: dmg
+            macos_deployment_target: "11.0"
 
     runs-on: ${{ matrix.runner }}
     env:
+      MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           lfs: ${{ matrix.platform == 'windows' }}
 
@@ -85,7 +181,9 @@ jobs:
 
           tar -xzf "$lame_archive" -C "$build_root"
           pushd "$build_root/lame-$LAME_VERSION"
-          ./configure --prefix="$prefix" --disable-shared --enable-static
+          CFLAGS="-mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET" \
+            LDFLAGS="-mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET" \
+            ./configure --prefix="$prefix" --disable-shared --enable-static
           make -j"$(sysctl -n hw.logicalcpu)"
           make install
           popd
@@ -95,8 +193,8 @@ jobs:
           PKG_CONFIG_PATH="$prefix/lib/pkgconfig" ./configure \
             --prefix="$prefix" \
             --pkg-config-flags="--static" \
-            --extra-cflags="-I$prefix/include" \
-            --extra-ldflags="-L$prefix/lib" \
+            --extra-cflags="-I$prefix/include -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET" \
+            --extra-ldflags="-L$prefix/lib -mmacosx-version-min=$MACOSX_DEPLOYMENT_TARGET" \
             --disable-autodetect \
             --disable-debug \
             --disable-doc \
@@ -106,6 +204,7 @@ jobs:
             --disable-shared \
             --enable-static \
             --enable-gpl \
+            --enable-version3 \
             --enable-libmp3lame
           make -j"$(sysctl -n hw.logicalcpu)"
           popd
@@ -118,7 +217,12 @@ jobs:
             x86_64-apple-darwin) expected_arch="x86_64" ;;
             *) echo "Unsupported macOS target: $TARGET" >&2; exit 1 ;;
           esac
-          file "$sidecar" | grep -q "Mach-O 64-bit $expected_arch"
+          actual_archs="$(lipo -archs "$sidecar")"
+          if [[ "$actual_archs" != "$expected_arch" ]]; then
+            echo "FFmpeg architecture mismatch: expected $expected_arch, got $actual_archs" >&2
+            exit 1
+          fi
+          vtool -show-build "$sidecar" | grep -Eq 'minos[[:space:]]+11\.0'
 
           unexpected_dependencies="$(otool -L "$sidecar" | awk 'NR > 1 { print $1 }' | grep -Ev '^(/usr/lib/|/System/Library/)' || true)"
           if [[ -n "$unexpected_dependencies" ]]; then
@@ -130,22 +234,27 @@ jobs:
           "$sidecar" -hide_banner -encoders | grep -q libmp3lame
           smoke_dir="$build_root/smoke"
           mkdir -p "$smoke_dir"
-          "$sidecar" -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:duration=0.2" \
-            -c:a aac "$smoke_dir/source.m4a"
-          "$sidecar" -hide_banner -loglevel error -i "$smoke_dir/source.m4a" \
+          "$sidecar" -hide_banner -loglevel error -f lavfi -i "testsrc=size=64x64:rate=10:duration=0.3" \
+            -c:v mpeg4 -pix_fmt yuv420p "$smoke_dir/video.mp4"
+          "$sidecar" -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:duration=0.3" \
+            -c:a aac "$smoke_dir/audio.m4a"
+          "$sidecar" -hide_banner -loglevel error -i "$smoke_dir/video.mp4" -i "$smoke_dir/audio.m4a" \
+            -map 0:v:0 -map 1:a:0 -c copy -movflags +faststart "$smoke_dir/muxed.mp4"
+          "$sidecar" -hide_banner -loglevel error -i "$smoke_dir/audio.m4a" \
             -c:a libmp3lame -b:a 128k "$smoke_dir/output.mp3"
+          test -s "$smoke_dir/muxed.mp4"
           test -s "$smoke_dir/output.mp3"
 
           echo "FFMPEG_BUILD_ROOT=$build_root" >> "$GITHUB_ENV"
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
           cache: npm
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           targets: ${{ matrix.target }}
 
@@ -160,36 +269,75 @@ jobs:
             exit 1
           fi
 
-      - name: Build and publish desktop bundle
-        uses: tauri-apps/tauri-action@v1
+      - name: Build and upload desktop bundle to draft
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MACOSX_DEPLOYMENT_TARGET: ${{ matrix.macos_deployment_target }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          releaseId: ${{ needs.prepare-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
-          releaseName: BiliCatch ${{ github.ref_name }}
-          releaseBody: |
-            Changes:
-            - Settings remain scrollable when the application window is small.
-            - Bilibili URLs copied before startup or while the app is open are
-              detected, filled into the download input, and parsed automatically.
-
-            Downloads:
-            - Windows x64: NSIS installer (`.exe`)
-            - macOS Intel: disk image (`x64.dmg`)
-            - macOS Apple Silicon: disk image (`aarch64.dmg`)
-
-            The Windows installer is not Authenticode-signed. The macOS disk
-            images are not Apple Developer signed or notarized. Only bypass the
-            operating-system warning after verifying that the file came from
-            this repository.
-
-            FFmpeg 9.0.1 and LAME 3.100 corresponding source archives are
-            attached to satisfy the bundled GPL component's source availability.
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+
+      - name: Smoke test packaged macOS sidecar
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          dmg="$(find "src-tauri/target/$TARGET/release/bundle/dmg" -type f -name '*.dmg' -print -quit)"
+          if [[ -z "$dmg" ]]; then
+            echo "No DMG was produced for $TARGET." >&2
+            exit 1
+          fi
+
+          mount_dir="$(mktemp -d "$RUNNER_TEMP/bilicatch-dmg.XXXXXX")"
+          cleanup() {
+            hdiutil detach "$mount_dir" >/dev/null 2>&1 || true
+            rmdir "$mount_dir" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mount_dir" >/dev/null
+
+          app_path="$(find "$mount_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
+          bundled_sidecar="$app_path/Contents/MacOS/ffmpeg"
+          if [[ -z "$app_path" || ! -x "$bundled_sidecar" ]]; then
+            echo "The packaged FFmpeg sidecar is missing or not executable." >&2
+            exit 1
+          fi
+
+          case "$TARGET" in
+            aarch64-apple-darwin) expected_arch="arm64" ;;
+            x86_64-apple-darwin) expected_arch="x86_64" ;;
+            *) echo "Unsupported macOS target: $TARGET" >&2; exit 1 ;;
+          esac
+          actual_archs="$(lipo -archs "$bundled_sidecar")"
+          if [[ "$actual_archs" != "$expected_arch" ]]; then
+            echo "Packaged FFmpeg architecture mismatch: expected $expected_arch, got $actual_archs" >&2
+            exit 1
+          fi
+          vtool -show-build "$bundled_sidecar" | grep -Eq 'minos[[:space:]]+11\.0'
+
+          smoke_dir="$(mktemp -d "$RUNNER_TEMP/bilicatch-packaged-smoke.XXXXXX")"
+          "$bundled_sidecar" -hide_banner -loglevel error -f lavfi -i "testsrc=size=64x64:rate=10:duration=0.3" \
+            -c:v mpeg4 -pix_fmt yuv420p "$smoke_dir/video.mp4"
+          "$bundled_sidecar" -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:duration=0.3" \
+            -c:a aac "$smoke_dir/audio.m4a"
+          "$bundled_sidecar" -hide_banner -loglevel error -i "$smoke_dir/video.mp4" -i "$smoke_dir/audio.m4a" \
+            -map 0:v:0 -map 1:a:0 -c copy -movflags +faststart "$smoke_dir/muxed.mp4"
+          "$bundled_sidecar" -hide_banner -loglevel error -i "$smoke_dir/audio.m4a" \
+            -c:a libmp3lame -b:a 128k "$smoke_dir/output.mp3"
+          test -s "$smoke_dir/muxed.mp4"
+          test -s "$smoke_dir/output.mp3"
+
+          hdiutil detach "$mount_dir" >/dev/null
+          rmdir "$mount_dir"
+          trap - EXIT
 
       - name: Upload bundled media processor source archives
         if: matrix.target == 'x86_64-apple-darwin'
@@ -201,3 +349,67 @@ jobs:
             "$FFMPEG_BUILD_ROOT/ffmpeg-9.0.1.tar.xz" \
             "$FFMPEG_BUILD_ROOT/lame-3.100.tar.gz" \
             --clobber
+
+  finalize-release:
+    needs:
+      - prepare-release
+      - build-and-upload
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate release assets and updater manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          asset_names="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '.[].name')"
+          echo "$asset_names"
+
+          require_asset() {
+            if ! grep -Eq "$1" <<< "$asset_names"; then
+              echo "Missing release asset matching: $1" >&2
+              exit 1
+            fi
+          }
+
+          escaped_version="${version//./\\.}"
+          require_asset "^BiliCatch_${escaped_version}_x64-setup\\.exe$"
+          require_asset "^BiliCatch_${escaped_version}_x64-setup\\.exe\\.sig$"
+          require_asset "^BiliCatch_${escaped_version}_x64\\.dmg$"
+          require_asset "^BiliCatch_${escaped_version}_aarch64\\.dmg$"
+          require_asset "^BiliCatch_${escaped_version}_x64\\.app\\.tar\\.gz$"
+          require_asset "^BiliCatch_${escaped_version}_x64\\.app\\.tar\\.gz\\.sig$"
+          require_asset "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz$"
+          require_asset "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz\\.sig$"
+          require_asset '^ffmpeg-9\.0\.1\.tar\.xz$'
+          require_asset '^lame-3\.100\.tar\.gz$'
+          require_asset '^latest\.json$'
+
+          check_dir="$RUNNER_TEMP/release-check"
+          mkdir -p "$check_dir"
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir "$check_dir"
+          export RELEASE_VERSION="$version"
+          jq -e '
+            . as $manifest |
+            $manifest.version == env.RELEASE_VERSION and
+            (["windows-x86_64", "darwin-x86_64", "darwin-aarch64"] | all(
+              . as $platform |
+              ($manifest.platforms[$platform].signature | type == "string" and length > 0) and
+              ($manifest.platforms[$platform].url | contains("/releases/download/v" + env.RELEASE_VERSION + "/"))
+            ))
+          ' "$check_dir/latest.json"
+
+      - name: Publish validated release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
+        run: |
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            --field draft=false \
+            --field prerelease=false \
+            --silent
+          echo "Published https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"

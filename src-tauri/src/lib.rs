@@ -18,18 +18,20 @@ const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg"];
 
 fn resolve_ffmpeg_sidecar(
     resource_dir: &std::path::Path,
+    executable_dir: &std::path::Path,
     bundled_names: &[&str],
 ) -> std::path::PathBuf {
     bundled_names
         .iter()
         .flat_map(|name| {
             [
+                executable_dir.join(name),
                 resource_dir.join(name),
                 resource_dir.join("binaries").join(name),
             ]
         })
         .find(|candidate| candidate.is_file())
-        .unwrap_or_else(|| resource_dir.join(bundled_names[0]))
+        .unwrap_or_else(|| executable_dir.join(bundled_names[0]))
 }
 
 #[cfg(test)]
@@ -37,15 +39,21 @@ mod tests {
     use super::resolve_ffmpeg_sidecar;
 
     #[test]
-    fn resolves_an_unrenamed_apple_silicon_sidecar_from_bundled_resources() {
+    fn resolves_a_sidecar_from_the_macos_executable_directory() {
         let temp = tempfile::tempdir().unwrap();
-        let binaries = temp.path().join("binaries");
-        std::fs::create_dir(&binaries).unwrap();
-        let sidecar = binaries.join("ffmpeg-aarch64-apple-darwin");
+        let contents = temp.path().join("BiliCatch.app").join("Contents");
+        let executable_dir = contents.join("MacOS");
+        let resource_dir = contents.join("Resources");
+        std::fs::create_dir_all(&executable_dir).unwrap();
+        std::fs::create_dir_all(&resource_dir).unwrap();
+        let sidecar = executable_dir.join("ffmpeg");
         std::fs::write(&sidecar, b"ffmpeg").unwrap();
 
-        let resolved =
-            resolve_ffmpeg_sidecar(temp.path(), &["ffmpeg", "ffmpeg-aarch64-apple-darwin"]);
+        let resolved = resolve_ffmpeg_sidecar(
+            &resource_dir,
+            &executable_dir,
+            &["ffmpeg", "ffmpeg-aarch64-apple-darwin"],
+        );
 
         assert_eq!(resolved, sidecar);
     }
@@ -100,6 +108,8 @@ pub fn run() {
                 .parent()
                 .map(std::path::Path::to_path_buf)
                 .ok_or_else(|| std::io::Error::other("executable has no parent directory"))?;
+            let ffmpeg_path =
+                resolve_ffmpeg_sidecar(&resource_dir, &install_directory, BUNDLED_FFMPEG_NAMES);
             let defaults =
                 services::settings::SettingsDefaults::from_install_directory(install_directory)
                     .map_err(|error| std::io::Error::other(error.message))?;
@@ -172,7 +182,6 @@ pub fn run() {
                 infrastructure::download::HttpByteDownloader::new(workspace.clone())
                     .map_err(|error| std::io::Error::other(error.message))?,
             );
-            let ffmpeg_path = resolve_ffmpeg_sidecar(&resource_dir, BUNDLED_FFMPEG_NAMES);
             let audio_executor = Arc::new(services::audio::AudioExecutor::new(
                 parser.clone(),
                 downloader.clone(),
