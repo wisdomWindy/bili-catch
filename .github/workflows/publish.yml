@@ -74,8 +74,7 @@ jobs:
           FFmpeg 9.0.1 and LAME 3.100 corresponding source archives are attached for the bundled GPLv3 component.
           BODY
 
-          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" --jq .id 2>/dev/null || true)"
-          if [[ -n "$release_id" ]]; then
+          if release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" --jq .id 2>/dev/null)"; then
             is_draft="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq .draft)"
             if [[ "$is_draft" != "true" ]]; then
               echo "Release $GITHUB_REF_NAME is already public." >&2
