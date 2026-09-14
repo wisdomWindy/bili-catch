@@ -115,12 +115,12 @@ jobs:
           - runner: macos-15-intel
             platform: macos
             target: x86_64-apple-darwin
-            bundles: dmg
+            bundles: app,dmg
             macos_deployment_target: "11.0"
           - runner: macos-15
             platform: macos
             target: aarch64-apple-darwin
-            bundles: dmg
+            bundles: app,dmg
             macos_deployment_target: "11.0"
 
     runs-on: ${{ matrix.runner }}
