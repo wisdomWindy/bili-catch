@@ -74,7 +74,9 @@ jobs:
           FFmpeg 9.0.1 and LAME 3.100 corresponding source archives are attached for the bundled GPLv3 component.
           BODY
 
-          if release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME" --jq .id 2>/dev/null)"; then
+          release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .id")"
+          if [[ -n "$release_id" ]]; then
             is_draft="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq .draft)"
             if [[ "$is_draft" != "true" ]]; then
               echo "Release $GITHUB_REF_NAME is already public." >&2
@@ -177,6 +179,10 @@ jobs:
             "https://downloads.sourceforge.net/project/lame/lame/$LAME_VERSION/lame-$LAME_VERSION.tar.gz"
           echo "$FFMPEG_SHA256  $ffmpeg_archive" | shasum -a 256 --check
           echo "$LAME_SHA256  $lame_archive" | shasum -a 256 --check
+
+          if [[ "$TARGET" == "x86_64-apple-darwin" ]] && ! command -v nasm >/dev/null; then
+            brew install nasm
+          fi
 
           tar -xzf "$lame_archive" -C "$build_root"
           pushd "$build_root/lame-$LAME_VERSION"
