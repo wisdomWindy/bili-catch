@@ -365,7 +365,9 @@ jobs:
         run: |
           set -euo pipefail
           version="${GITHUB_REF_NAME#v}"
-          asset_names="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --jq '.[].name')"
+          assets_file="$RUNNER_TEMP/release-assets.json"
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" > "$assets_file"
+          asset_names="$(jq -r '.[].name' "$assets_file")"
           echo "$asset_names"
 
           require_asset() {
@@ -388,6 +390,19 @@ jobs:
           require_asset '^lame-3\.100\.tar\.gz$'
           require_asset '^latest\.json$'
 
+          asset_api_url() {
+            jq -er --arg pattern "$1" '
+              [.[] | select(.name | test($pattern))] |
+              if length == 1 then .[0].url else error("expected exactly one matching updater asset") end
+            ' "$assets_file"
+          }
+          export WINDOWS_UPDATE_URL
+          export DARWIN_X64_UPDATE_URL
+          export DARWIN_ARM64_UPDATE_URL
+          WINDOWS_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_x64-setup\\.exe$")"
+          DARWIN_X64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_x64\\.app\\.tar\\.gz$")"
+          DARWIN_ARM64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz$")"
+
           check_dir="$RUNNER_TEMP/release-check"
           mkdir -p "$check_dir"
           gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir "$check_dir"
@@ -397,9 +412,11 @@ jobs:
             $manifest.version == env.RELEASE_VERSION and
             (["windows-x86_64", "darwin-x86_64", "darwin-aarch64"] | all(
               . as $platform |
-              ($manifest.platforms[$platform].signature | type == "string" and length > 0) and
-              ($manifest.platforms[$platform].url | contains("/releases/download/v" + env.RELEASE_VERSION + "/"))
-            ))
+              ($manifest.platforms[$platform].signature | type == "string" and length > 0)
+            )) and
+            $manifest.platforms["windows-x86_64"].url == env.WINDOWS_UPDATE_URL and
+            $manifest.platforms["darwin-x86_64"].url == env.DARWIN_X64_UPDATE_URL and
+            $manifest.platforms["darwin-aarch64"].url == env.DARWIN_ARM64_UPDATE_URL
           ' "$check_dir/latest.json"
 
       - name: Publish validated release
