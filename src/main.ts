@@ -6,7 +6,8 @@ import { createAppI18n } from "./locales";
 import { createAppIpcService } from "./services/ipc/app";
 import { createTauriIpcTransport } from "./services/ipc/client";
 import { createParseVideoService } from "./features/download-center/service";
-import { parseVideoServiceKey } from "./features/download-center/injection";
+import { clipboardReaderKey, parseVideoServiceKey } from "./features/download-center/injection";
+import { createTauriClipboardReader } from "./features/download-center/clipboard";
 import { createDemoParseVideoService } from "./features/download-center/demo-service";
 import { createTaskService } from "./features/task-management/service";
 import { taskEventSourceKey, taskServiceKey } from "./features/task-management/injection";
@@ -54,6 +55,9 @@ const appService = demoMode
 const parseVideoService = demoMode
   ? createDemoParseVideoService()
   : createParseVideoService(transport);
+const clipboardReader = demoMode
+  ? { readText: async () => "" }
+  : createTauriClipboardReader();
 const demoTaskMode = window.location.hash.includes("empty=1") ? "empty" : window.location.hash.includes("error=1") ? "error" : "normal";
 const taskRuntime = demoMode
   ? createDemoTaskRuntime(demoTaskMode)
@@ -84,6 +88,7 @@ if (demoMode) {
 
 createApp(App, { appService })
   .provide(parseVideoServiceKey, parseVideoService)
+  .provide(clipboardReaderKey, clipboardReader)
   .provide(taskServiceKey, taskRuntime.service)
   .provide(taskEventSourceKey, taskRuntime.events)
   .provide(authServiceKey, authRuntime.service)

@@ -9,18 +9,37 @@ permissions:
   contents: write
 
 jobs:
-  publish-windows:
-    runs-on: windows-latest
+  publish-desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            platform: windows
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - runner: macos-15-intel
+            platform: macos
+            target: x86_64-apple-darwin
+            bundles: dmg
+          - runner: macos-15
+            platform: macos
+            target: aarch64-apple-darwin
+            bundles: dmg
+
+    runs-on: ${{ matrix.runner }}
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: ${{ matrix.platform == 'windows' }}
 
-      - name: Verify FFmpeg sidecar
+      - name: Verify Windows FFmpeg sidecar
+        if: matrix.platform == 'windows'
         shell: pwsh
         run: |
           $ffmpegPath = Join-Path $env:GITHUB_WORKSPACE "src-tauri\binaries\ffmpeg-x86_64-pc-windows-msvc.exe"
@@ -40,26 +59,108 @@ jobs:
             throw "FFmpeg sidecar SHA-256 mismatch."
           }
 
+      - name: Build macOS FFmpeg sidecar
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          FFMPEG_VERSION: "9.0.1"
+          FFMPEG_SHA256: cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635
+          LAME_VERSION: "3.100"
+          LAME_SHA256: ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+
+          build_root="$(mktemp -d "$RUNNER_TEMP/bilicatch-ffmpeg.XXXXXX")"
+          prefix="$build_root/prefix"
+          ffmpeg_archive="$build_root/ffmpeg-$FFMPEG_VERSION.tar.xz"
+          lame_archive="$build_root/lame-$LAME_VERSION.tar.gz"
+
+          curl --fail --location --retry 3 --output "$ffmpeg_archive" \
+            "https://ffmpeg.org/releases/ffmpeg-$FFMPEG_VERSION.tar.xz"
+          curl --fail --location --retry 3 --output "$lame_archive" \
+            "https://downloads.sourceforge.net/project/lame/lame/$LAME_VERSION/lame-$LAME_VERSION.tar.gz"
+          echo "$FFMPEG_SHA256  $ffmpeg_archive" | shasum -a 256 --check
+          echo "$LAME_SHA256  $lame_archive" | shasum -a 256 --check
+
+          tar -xzf "$lame_archive" -C "$build_root"
+          pushd "$build_root/lame-$LAME_VERSION"
+          ./configure --prefix="$prefix" --disable-shared --enable-static
+          make -j"$(sysctl -n hw.logicalcpu)"
+          make install
+          popd
+
+          tar -xJf "$ffmpeg_archive" -C "$build_root"
+          pushd "$build_root/ffmpeg-$FFMPEG_VERSION"
+          PKG_CONFIG_PATH="$prefix/lib/pkgconfig" ./configure \
+            --prefix="$prefix" \
+            --pkg-config-flags="--static" \
+            --extra-cflags="-I$prefix/include" \
+            --extra-ldflags="-L$prefix/lib" \
+            --disable-autodetect \
+            --disable-debug \
+            --disable-doc \
+            --disable-ffplay \
+            --disable-ffprobe \
+            --disable-network \
+            --disable-shared \
+            --enable-static \
+            --enable-gpl \
+            --enable-libmp3lame
+          make -j"$(sysctl -n hw.logicalcpu)"
+          popd
+
+          sidecar="$GITHUB_WORKSPACE/src-tauri/binaries/ffmpeg-$TARGET"
+          install -m 755 "$build_root/ffmpeg-$FFMPEG_VERSION/ffmpeg" "$sidecar"
+
+          case "$TARGET" in
+            aarch64-apple-darwin) expected_arch="arm64" ;;
+            x86_64-apple-darwin) expected_arch="x86_64" ;;
+            *) echo "Unsupported macOS target: $TARGET" >&2; exit 1 ;;
+          esac
+          file "$sidecar" | grep -q "Mach-O 64-bit $expected_arch"
+
+          unexpected_dependencies="$(otool -L "$sidecar" | awk 'NR > 1 { print $1 }' | grep -Ev '^(/usr/lib/|/System/Library/)' || true)"
+          if [[ -n "$unexpected_dependencies" ]]; then
+            echo "FFmpeg has non-system dynamic dependencies:" >&2
+            echo "$unexpected_dependencies" >&2
+            exit 1
+          fi
+
+          "$sidecar" -hide_banner -encoders | grep -q libmp3lame
+          smoke_dir="$build_root/smoke"
+          mkdir -p "$smoke_dir"
+          "$sidecar" -hide_banner -loglevel error -f lavfi -i "sine=frequency=1000:duration=0.2" \
+            -c:a aac "$smoke_dir/source.m4a"
+          "$sidecar" -hide_banner -loglevel error -i "$smoke_dir/source.m4a" \
+            -c:a libmp3lame -b:a 128k "$smoke_dir/output.mp3"
+          test -s "$smoke_dir/output.mp3"
+
+          echo "FFMPEG_BUILD_ROOT=$build_root" >> "$GITHUB_ENV"
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 22
           cache: npm
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Install frontend dependencies
         run: npm ci
 
       - name: Verify updater signing secret
-        shell: pwsh
+        shell: bash
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
-            throw "TAURI_SIGNING_PRIVATE_KEY is required for Tauri updater signatures; it is not a Windows code-signing certificate."
-          }
+          if [[ -z "$TAURI_SIGNING_PRIVATE_KEY" ]]; then
+            echo "TAURI_SIGNING_PRIVATE_KEY is required for Tauri updater signatures." >&2
+            exit 1
+          fi
 
-      - name: Build and publish Windows bundle
+      - name: Build and publish desktop bundle
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,14 +170,34 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: BiliCatch ${{ github.ref_name }}
           releaseBody: |
-            Download the Windows NSIS installer from the assets below.
+            Changes:
+            - Settings remain scrollable when the application window is small.
+            - Bilibili URLs copied before startup or while the app is open are
+              detected, filled into the download input, and parsed automatically.
 
-            This installer is not Authenticode-signed. Windows SmartScreen may show
-            an "Unknown publisher" warning; choose "More info" and then "Run anyway"
-            only after verifying that the download came from this repository.
+            Downloads:
+            - Windows x64: NSIS installer (`.exe`)
+            - macOS Intel: disk image (`x64.dmg`)
+            - macOS Apple Silicon: disk image (`aarch64.dmg`)
+
+            The Windows installer is not Authenticode-signed. The macOS disk
+            images are not Apple Developer signed or notarized. Only bypass the
+            operating-system warning after verifying that the file came from
+            this repository.
+
+            FFmpeg 9.0.1 and LAME 3.100 corresponding source archives are
+            attached to satisfy the bundled GPL component's source availability.
           releaseDraft: false
           prerelease: false
-          args: --bundles nsis
+          args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
-# macOS and Linux jobs should be added after their platform-specific FFmpeg
-# sidecars and release inputs are available.
+      - name: Upload bundled media processor source archives
+        if: matrix.target == 'x86_64-apple-darwin'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "$GITHUB_REF_NAME" \
+            "$FFMPEG_BUILD_ROOT/ffmpeg-9.0.1.tar.xz" \
+            "$FFMPEG_BUILD_ROOT/lame-3.100.tar.gz" \
+            --clobber

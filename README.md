@@ -1,6 +1,6 @@
 # BiliCatch
 
-BiliCatch 是一个基于 Tauri 2、Vue 3、TypeScript 和 Rust 的哔哩哔哩桌面下载工具，面向 Windows 桌面使用场景，支持视频、音频解析、队列管理和 GitHub Releases 自动更新。
+BiliCatch 是一个基于 Tauri 2、Vue 3、TypeScript 和 Rust 的哔哩哔哩桌面下载工具，面向 Windows 和 macOS 桌面使用场景，支持视频、音频解析、队列管理和 GitHub Releases 自动更新。
 
 ## 功能概览
 
@@ -12,19 +12,19 @@ BiliCatch 是一个基于 Tauri 2、Vue 3、TypeScript 和 Rust 的哔哩哔哩�
 - 任务状态和设置可持久化恢复，断电或重启后可继续处理可恢复任务。
 - 设置页支持下载目录、临时目录、并发数、主题、语言、通知和关闭行为配置。
 - 默认目录为安装目录下的 download 和 temp 子目录；已有有效的自定义目录不会被覆盖。
-- Windows 构建内置 FFmpeg sidecar，用于音频转码和视频音画合并。
+- Windows 与 macOS 构建内置 FFmpeg sidecar，用于音频转码和视频音画合并。
 - 更新器使用 GitHub Releases 的 latest.json，更新包安装前会校验 Tauri updater 签名。
 
 ## 当前发布状态
 
-- 当前正式发布目标为 Windows x64 NSIS 安装包。
+- 当前正式发布目标为 Windows x64 NSIS、macOS Intel DMG 和 macOS Apple Silicon DMG 安装包。
 - GitHub Actions 通过推送 v* 版本标签触发发布，产物上传到 GitHub Releases。
 - Windows 安装包目前未配置 Authenticode 证书，首次安装可能出现 SmartScreen“未知发布者”提示。请确认下载地址来自本仓库后，再选择“更多信息 → 仍要运行”。
-- macOS 和 Linux 发布任务尚未启用；对应平台的 FFmpeg sidecar 和打包验证完成后再扩展流水线。
+- macOS 安装包目前未配置 Apple Developer 签名与公证，首次启动可能需要在系统设置中手动允许。
 
 ## 安装使用
 
-从 [GitHub Releases](https://github.com/wisdomWindy/bili-catch/releases) 下载最新 Windows NSIS 安装包并运行。启动后：
+从 [GitHub Releases](https://github.com/wisdomWindy/bili-catch/releases) 下载对应平台和架构的最新安装包并运行。启动后：
 
 1. 在“下载中心”粘贴 B 站视频链接或 BV/AV 编号。
 2. 等待解析完成，选择分 P、视频清晰度、编码或音频格式。
@@ -95,10 +95,12 @@ npm run tauri build -- --bundles nsis
 
 ## FFmpeg sidecar
 
-Windows 构建使用以下资源：
+Windows 构建使用仓库内的 sidecar；macOS 发布任务从固定源码构建对应架构的 sidecar：
 
 ~~~text
 src-tauri/binaries/ffmpeg-x86_64-pc-windows-msvc.exe
+src-tauri/binaries/ffmpeg-x86_64-apple-darwin
+src-tauri/binaries/ffmpeg-aarch64-apple-darwin
 src-tauri/binaries/ffmpeg-9.0.1-GPLv3-LICENSE.txt
 ~~~
 
@@ -124,7 +126,7 @@ GitHub Actions 需要配置以下 Repository secrets：
 https://github.com/wisdomWindy/bili-catch/releases/latest/download/latest.json
 ~~~
 
-Tauri updater 的签名密钥只用于更新元数据和更新包校验，不能替代 Windows 安装包的 Authenticode 证书。发布新版本前应同步更新 package.json、src-tauri/tauri.conf.json 和对应版本标签，并确认 GitHub Release 中包含安装包、签名文件和 latest.json。
+Tauri updater 的签名密钥只用于更新元数据和更新包校验，不能替代 Windows Authenticode 或 Apple Developer 签名。发布新版本前应同步更新 package.json、src-tauri/tauri.conf.json 和对应版本标签，并确认 GitHub Release 中包含安装包、签名文件和 latest.json。
 
 ## 项目结构
 
@@ -148,4 +150,4 @@ docs/requests/                PRD、规格、计划、验证和执行记录
 
 ## 许可证
 
-本项目代码使用 [MIT License](LICENSE)。FFmpeg sidecar 使用其随附许可证，详见 src-tauri/binaries/ffmpeg-9.0.1-GPLv3-LICENSE.txt 和 docs/third-party/ffmpeg-9.0.1-essentials.md。
+本项目代码使用 [MIT License](LICENSE)。FFmpeg sidecar 使用其随附许可证，详见 src-tauri/binaries/ffmpeg-9.0.1-GPLv3-LICENSE.txt、docs/third-party/ffmpeg-9.0.1-essentials.md 和 docs/third-party/ffmpeg-9.0.1-macos.md。

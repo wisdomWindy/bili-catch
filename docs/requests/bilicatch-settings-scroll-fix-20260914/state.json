@@ -1,0 +1,35 @@
+{
+  "request_id": "bilicatch-settings-scroll-fix-20260914",
+  "source": {
+    "type": "direct_user_defect_report",
+    "date": "2026-09-14",
+    "evidence": ["USER-DEFECT-01", "USER-APPROVAL-01"]
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-settings-scroll-fix-20260914/request.md",
+    "bugfix_source": "docs/requests/bilicatch-settings-scroll-fix-20260914/artifacts/bugfix-source.md",
+    "prd_snapshot": "docs/requests/bilicatch-settings-scroll-fix-20260914/artifacts/prd-snapshot.md",
+    "code_context": "docs/requests/bilicatch-settings-scroll-fix-20260914/artifacts/code-context.md",
+    "spec": "docs/requests/bilicatch-settings-scroll-fix-20260914/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-settings-scroll-fix-20260914/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-settings-scroll-fix-20260914/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-settings-scroll-fix-20260914/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-settings-scroll-fix-20260914/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-settings-scroll-fix-20260914/verification/verification.md",
+    "review": "docs/requests/bilicatch-settings-scroll-fix-20260914/review/review.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 6,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}

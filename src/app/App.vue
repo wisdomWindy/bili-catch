@@ -48,7 +48,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <NConfigProvider :theme="naiveTheme">
+  <NConfigProvider class="app-provider" :theme="naiveTheme">
     <NDialogProvider>
       <NMessageProvider>
         <DownloadNotificationBridge>

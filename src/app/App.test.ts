@@ -63,6 +63,7 @@ describe("App settings lifecycle", () => {
     });
     await flushPromises();
 
+    expect(wrapper.get(".app-provider").classes()).toContain("n-config-provider");
     expect(service.getSnapshot).toHaveBeenCalledOnce();
     expect(effects.applyCommitted).toHaveBeenCalledOnce();
     wrapper.unmount();

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, watch } from "vue";
 import { AlertTriangle, LoaderCircle, LogIn, RefreshCw, Trash2 } from "@lucide/vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
@@ -8,19 +8,24 @@ import DownloadOptions from "../features/download-center/components/DownloadOpti
 import InputPanel from "../features/download-center/components/InputPanel.vue";
 import PartSelector from "../features/download-center/components/PartSelector.vue";
 import VideoSummary from "../features/download-center/components/VideoSummary.vue";
-import { useDownloadNotifier, useParseVideoService } from "../features/download-center/injection";
+import { useClipboardReader, useDownloadNotifier, useParseVideoService } from "../features/download-center/injection";
 import { useDownloadCenterStore } from "../features/download-center/store";
+import { normalizeParseInput } from "../features/download-center/input";
 import { useTaskDraftsStore } from "../stores/task-drafts";
 import { useAuthStore } from "../features/authentication/store";
 
 const store = useDownloadCenterStore();
 const service = useParseVideoService();
+const clipboardReader = useClipboardReader();
 const taskDrafts = useTaskDraftsStore();
 const auth = useAuthStore();
 const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 const notifier = useDownloadNotifier();
+let clipboardReadRevision = 0;
+let lastClipboardText: string | undefined;
+let isDisposed = false;
 
 watch(() => auth.snapshot.status, async (status, previous) => {
   const authenticated = status === "authenticated";
@@ -42,6 +47,23 @@ const errorText = computed(() => store.error ? t(`errors.${store.error.code}`) :
 function submit(value?: string) {
   if (value !== undefined) store.setInput(value);
   void store.parse(service, value);
+}
+
+async function checkClipboard() {
+  const revision = ++clipboardReadRevision;
+  try {
+    const value = await clipboardReader.readText();
+    if (isDisposed || revision !== clipboardReadRevision || value === lastClipboardText) return;
+    lastClipboardText = value;
+    const normalized = normalizeParseInput(value);
+    if (normalized.ok) submit(normalized.value);
+  } catch {
+    // Clipboard access is optional; manual paste and submit remain available.
+  }
+}
+
+function handleWindowFocus() {
+  void checkClipboard();
 }
 
 async function enqueue() {
@@ -70,10 +92,18 @@ function selectAudioFormat(format: typeof store.audioFormat) {
 }
 
 onMounted(() => {
+  window.addEventListener("focus", handleWindowFocus);
+  void checkClipboard();
   if (import.meta.env.DEV && route.query.demo === "1" && route.query.autoparse === "1") {
     const input = route.query.error === "1" ? "av404" : "BV1xx411c7BF";
     submit(input);
   }
+});
+
+onBeforeUnmount(() => {
+  isDisposed = true;
+  clipboardReadRevision += 1;
+  window.removeEventListener("focus", handleWindowFocus);
 });
 </script>
 

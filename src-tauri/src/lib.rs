@@ -3,6 +3,54 @@ pub mod infrastructure;
 pub mod models;
 pub mod services;
 
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg.exe", "ffmpeg-x86_64-pc-windows-msvc.exe"];
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg", "ffmpeg-x86_64-apple-darwin"];
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg", "ffmpeg-aarch64-apple-darwin"];
+#[cfg(not(any(
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64")
+)))]
+const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg"];
+
+fn resolve_ffmpeg_sidecar(
+    resource_dir: &std::path::Path,
+    bundled_names: &[&str],
+) -> std::path::PathBuf {
+    bundled_names
+        .iter()
+        .flat_map(|name| {
+            [
+                resource_dir.join(name),
+                resource_dir.join("binaries").join(name),
+            ]
+        })
+        .find(|candidate| candidate.is_file())
+        .unwrap_or_else(|| resource_dir.join(bundled_names[0]))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_ffmpeg_sidecar;
+
+    #[test]
+    fn resolves_an_unrenamed_apple_silicon_sidecar_from_bundled_resources() {
+        let temp = tempfile::tempdir().unwrap();
+        let binaries = temp.path().join("binaries");
+        std::fs::create_dir(&binaries).unwrap();
+        let sidecar = binaries.join("ffmpeg-aarch64-apple-darwin");
+        std::fs::write(&sidecar, b"ffmpeg").unwrap();
+
+        let resolved =
+            resolve_ffmpeg_sidecar(temp.path(), &["ffmpeg", "ffmpeg-aarch64-apple-darwin"]);
+
+        assert_eq!(resolved, sidecar);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use std::sync::{
@@ -15,6 +63,7 @@ pub fn run() {
     let setup_shutdown = shutdown.clone();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
@@ -123,16 +172,7 @@ pub fn run() {
                 infrastructure::download::HttpByteDownloader::new(workspace.clone())
                     .map_err(|error| std::io::Error::other(error.message))?,
             );
-            let ffmpeg_path = [
-                resource_dir.join("ffmpeg.exe"),
-                resource_dir.join("ffmpeg-x86_64-pc-windows-msvc.exe"),
-                resource_dir
-                    .join("binaries")
-                    .join("ffmpeg-x86_64-pc-windows-msvc.exe"),
-            ]
-            .into_iter()
-            .find(|candidate| candidate.is_file())
-            .unwrap_or_else(|| resource_dir.join("ffmpeg.exe"));
+            let ffmpeg_path = resolve_ffmpeg_sidecar(&resource_dir, BUNDLED_FFMPEG_NAMES);
             let audio_executor = Arc::new(services::audio::AudioExecutor::new(
                 parser.clone(),
                 downloader.clone(),

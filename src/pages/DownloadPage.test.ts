@@ -2,16 +2,28 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { createPinia, setActivePinia } from "pinia";
 import { defineComponent } from "vue";
 import { NMessageProvider } from "naive-ui";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createMemoryHistory } from "vue-router";
 import DownloadPage from "./DownloadPage.vue";
 import { createAppRouter } from "../app/router";
 import { createAppI18n } from "../locales";
-import { downloadNotifierKey, parseVideoServiceKey } from "../features/download-center/injection";
+import {
+  clipboardReaderKey,
+  downloadNotifierKey,
+  parseVideoServiceKey,
+} from "../features/download-center/injection";
 import type { ParseVideoResult } from "../features/download-center/contracts";
 import { useDownloadCenterStore } from "../features/download-center/store";
 import { useTaskDraftsStore } from "../stores/task-drafts";
 import { useAuthStore } from "../features/authentication/store";
+
+const mountedWrappers: Array<{ unmount(): void }> = [];
+let readClipboard = vi.fn().mockResolvedValue("");
+
+afterEach(() => {
+  mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount());
+  readClipboard = vi.fn().mockResolvedValue("");
+});
 
 const result: ParseVideoResult = {
   canonicalUrl: "https://www.bilibili.com/video/BV1xx411c7BF",
@@ -49,10 +61,12 @@ function render(
       plugins: [pinia, router, createAppI18n()],
       provide: {
         [parseVideoServiceKey as symbol]: { parseVideo },
+        [clipboardReaderKey as symbol]: { readText: () => readClipboard() },
         [downloadNotifierKey as symbol]: { success: vi.fn(), info: sessionInfo },
       },
     },
   });
+  mountedWrappers.push(wrapper);
   return { wrapper, parseVideo, router, pinia, sessionInfo };
 }
 
@@ -95,6 +109,58 @@ describe("DownloadPage", () => {
 
     expect(parseVideo).toHaveBeenCalledWith("av170001");
     expect((wrapper.get("#video-input").element as HTMLInputElement).value).toBe("av170001");
+  });
+
+  it("reads and parses a new valid clipboard value when the window regains focus", async () => {
+    const readText = vi.fn()
+      .mockResolvedValueOnce("not a Bilibili address")
+      .mockResolvedValueOnce("https://www.bilibili.com/video/BV1xx411c7BF");
+    readClipboard = readText;
+    const { wrapper, parseVideo } = render();
+    await flushPromises();
+
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+
+    expect((wrapper.get("#video-input").element as HTMLInputElement).value)
+      .toBe("https://www.bilibili.com/video/BV1xx411c7BF");
+    expect(wrapper.get("#video-title").text()).toBe("Fixture video");
+    expect(parseVideo).toHaveBeenCalledOnce();
+    expect(parseVideo).toHaveBeenCalledWith("https://www.bilibili.com/video/BV1xx411c7BF");
+  });
+
+  it("does not parse the same clipboard value again on repeated focus", async () => {
+    const readText = vi.fn().mockResolvedValue("av170001");
+    readClipboard = readText;
+    const { wrapper, parseVideo } = render();
+    await flushPromises();
+
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+
+    expect((wrapper.get("#video-input").element as HTMLInputElement).value).toBe("av170001");
+    expect(parseVideo).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores an older clipboard read that finishes after a focus read", async () => {
+    let resolveInitialRead: ((value: string) => void) | undefined;
+    const initialRead = new Promise<string>((resolve) => {
+      resolveInitialRead = resolve;
+    });
+    const readText = vi.fn()
+      .mockReturnValueOnce(initialRead)
+      .mockResolvedValueOnce("BV1xx411c7BF");
+    readClipboard = readText;
+    const { wrapper, parseVideo } = render();
+
+    window.dispatchEvent(new Event("focus"));
+    await flushPromises();
+    resolveInitialRead?.("av170001");
+    await flushPromises();
+
+    expect((wrapper.get("#video-input").element as HTMLInputElement).value).toBe("BV1xx411c7BF");
+    expect(parseVideo).toHaveBeenCalledOnce();
+    expect(parseVideo).toHaveBeenCalledWith("BV1xx411c7BF");
   });
 
   it("auto-submits valid plain text dropped on the input panel", async () => {

@@ -25,7 +25,15 @@ impl FfmpegLocator {
             .file_name()
             .and_then(|value| value.to_str())
             .is_some_and(|value| {
-                value.eq_ignore_ascii_case("ffmpeg") || value.eq_ignore_ascii_case("ffmpeg.exe")
+                [
+                    "ffmpeg",
+                    "ffmpeg.exe",
+                    "ffmpeg-x86_64-pc-windows-msvc.exe",
+                    "ffmpeg-x86_64-apple-darwin",
+                    "ffmpeg-aarch64-apple-darwin",
+                ]
+                .iter()
+                .any(|candidate| value.eq_ignore_ascii_case(candidate))
             });
         if !configured_path.is_absolute() || !valid_name || !configured_path.is_file() {
             return Err(ffmpeg_error(
@@ -288,7 +296,10 @@ impl MediaProcessorPort for DeferredFfmpegMediaProcessor {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use super::{DeferredFfmpegMediaProcessor, FfmpegMediaProcessor, FfmpegRunner, RunnerOutcome};
+    use super::{
+        DeferredFfmpegMediaProcessor, FfmpegLocator, FfmpegMediaProcessor, FfmpegRunner,
+        RunnerOutcome,
+    };
     use crate::{
         models::{AppError, AudioOutputProfile},
         services::audio::{
@@ -414,5 +425,14 @@ mod tests {
             assert_eq!(error.code, crate::models::AppErrorCode::E008);
             assert_eq!(error.details.as_deref(), Some("FFMPEG_UNAVAILABLE"));
         });
+    }
+
+    #[test]
+    fn locator_accepts_a_bundled_macos_target_triple_name() {
+        let temp = tempfile::tempdir().unwrap();
+        let sidecar = temp.path().join("ffmpeg-x86_64-apple-darwin");
+        std::fs::write(&sidecar, b"ffmpeg").unwrap();
+
+        assert_eq!(FfmpegLocator::resolve(&sidecar).unwrap(), sidecar);
     }
 }

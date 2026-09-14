@@ -1,0 +1,16 @@
+{
+  "request_id": "bilicatch-clipboard-auto-parse-20260914",
+  "type": "bugfix",
+  "speed_profile": "S1",
+  "stage": "complete",
+  "approvals": {
+    "spec_approved": true,
+    "architecture_approved": true,
+    "plan_approved": true
+  },
+  "loop": {
+    "state": "complete",
+    "iteration": 0,
+    "max_iterations": 2
+  }
+}
