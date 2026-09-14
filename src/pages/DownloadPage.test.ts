@@ -9,6 +9,7 @@ import { createAppRouter } from "../app/router";
 import { createAppI18n } from "../locales";
 import { downloadNotifierKey, parseVideoServiceKey } from "../features/download-center/injection";
 import type { ParseVideoResult } from "../features/download-center/contracts";
+import { useDownloadCenterStore } from "../features/download-center/store";
 import { useTaskDraftsStore } from "../stores/task-drafts";
 import { useAuthStore } from "../features/authentication/store";
 
@@ -33,9 +34,11 @@ const result: ParseVideoResult = {
 function render(
   parseVideo = vi.fn().mockResolvedValue(result),
   sessionInfo = vi.fn(),
+  configure?: (pinia: ReturnType<typeof createPinia>) => void,
 ) {
   const pinia = createPinia();
   setActivePinia(pinia);
+  configure?.(pinia);
   const router = createAppRouter(createMemoryHistory());
   const Host = defineComponent({
     components: { DownloadPage, NMessageProvider },
@@ -189,5 +192,48 @@ describe("DownloadPage", () => {
     expect(parseVideo).toHaveBeenCalledTimes(2);
     expect(wrapper.get("option[value='80']").attributes("disabled")).toBeUndefined();
     expect(wrapper.get("option[value='80']").text()).not.toContain("需登录");
+  });
+
+  it("refreshes stale anonymous qualities when returning after login", async () => {
+    const anonymousResult: ParseVideoResult = {
+      ...result,
+      qualities: [
+        { id: "120", label: "4K", requiresLogin: true },
+        { id: "80", label: "1080P", requiresLogin: false },
+      ],
+    };
+    const authenticatedResult: ParseVideoResult = {
+      ...anonymousResult,
+      qualities: [
+        { id: "120", label: "4K", requiresLogin: false },
+        { id: "80", label: "1080P", requiresLogin: false },
+      ],
+      videoVariants: [
+        { qualityId: "120", codec: "hevc" },
+        { qualityId: "80", codec: "avc" },
+      ],
+    };
+    const parseVideo = vi.fn().mockResolvedValue(authenticatedResult);
+    const { wrapper } = render(parseVideo, vi.fn(), (pinia) => {
+      const download = useDownloadCenterStore(pinia);
+      download.input = "BV1xx411c7BF";
+      download.normalizedInput = "BV1xx411c7BF";
+      download.applyResult(anonymousResult);
+
+      const auth = useAuthStore(pinia);
+      auth.snapshot = {
+        revision: 4,
+        status: "authenticated",
+        qrContent: null,
+        expiresAt: null,
+        account: { mid: "9001", name: "Fixture", avatarUrl: null },
+        error: null,
+      };
+    });
+
+    await flushPromises();
+
+    expect(parseVideo).toHaveBeenCalledWith("BV1xx411c7BF");
+    expect(wrapper.get("option[value='120']").attributes("disabled")).toBeUndefined();
   });
 });

@@ -23,10 +23,11 @@ const route = useRoute();
 const notifier = useDownloadNotifier();
 
 watch(() => auth.snapshot.status, async (status, previous) => {
-  if (previous !== undefined && previous !== status) {
-    await store.refreshForAuthChange(service, status === "authenticated");
+  const authenticated = status === "authenticated";
+  if (store.authenticated !== authenticated) {
+    await store.refreshForAuthChange(service, authenticated);
   } else {
-    store.reconcileAudioAvailability(status === "authenticated");
+    store.reconcileAudioAvailability(authenticated);
   }
   if (previous === "authenticated" && status === "anonymous") {
     notifier.info(t("download.sessionExpired"));
