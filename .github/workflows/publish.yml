@@ -71,7 +71,7 @@ jobs:
 
           The Windows installer is not Authenticode-signed. The macOS disk images are not Apple Developer signed or notarized. Only bypass an operating-system warning after verifying that the file came from this repository.
 
-          FFmpeg 9.0.1 and LAME 3.100 corresponding source archives are attached for the bundled GPLv3 component.
+          FFmpeg licensing and source information for the bundled media component is documented in this repository.
           BODY
 
           release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
@@ -98,6 +98,17 @@ jobs:
               --field prerelease=false \
               --jq .id)"
           fi
+
+          for asset_name in ffmpeg-9.0.1.tar.xz lame-3.100.tar.gz; do
+            asset_ids="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+              --jq ".[] | select(.name == \"$asset_name\") | .id")"
+            while IFS= read -r asset_id; do
+              if [[ -n "$asset_id" ]]; then
+                gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --silent
+              fi
+            done <<< "$asset_ids"
+          done
+
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
 
   build-and-upload:
@@ -250,8 +261,6 @@ jobs:
           test -s "$smoke_dir/muxed.mp4"
           test -s "$smoke_dir/output.mp3"
 
-          echo "FFMPEG_BUILD_ROOT=$build_root" >> "$GITHUB_ENV"
-
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -344,40 +353,6 @@ jobs:
           rmdir "$mount_dir"
           trap - EXIT
 
-      - name: Upload bundled media processor source archives
-        if: matrix.target == 'x86_64-apple-darwin'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
-        run: |
-          set -euo pipefail
-
-          upload_release_asset() {
-            local asset_path="$1"
-            local asset_name
-            local existing_asset_ids
-            asset_name="$(basename "$asset_path")"
-            existing_asset_ids="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" \
-              --jq ".[] | select(.name == \"$asset_name\") | .id")"
-            while IFS= read -r asset_id; do
-              if [[ -n "$asset_id" ]]; then
-                gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --silent
-              fi
-            done <<< "$existing_asset_ids"
-
-            curl --fail-with-body --silent --show-error --output /dev/null --retry 3 --request POST \
-              --header "Authorization: Bearer $GH_TOKEN" \
-              --header "Accept: application/vnd.github+json" \
-              --header "Content-Type: application/octet-stream" \
-              --header "X-GitHub-Api-Version: 2022-11-28" \
-              --data-binary "@$asset_path" \
-              "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?name=$asset_name"
-          }
-
-          upload_release_asset "$FFMPEG_BUILD_ROOT/ffmpeg-9.0.1.tar.xz"
-          upload_release_asset "$FFMPEG_BUILD_ROOT/lame-3.100.tar.gz"
-
   finalize-release:
     needs:
       - prepare-release
@@ -414,9 +389,12 @@ jobs:
           require_asset "^BiliCatch_${escaped_version}_x64\\.app\\.tar\\.gz\\.sig$"
           require_asset "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz$"
           require_asset "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz\\.sig$"
-          require_asset '^ffmpeg-9\.0\.1\.tar\.xz$'
-          require_asset '^lame-3\.100\.tar\.gz$'
           require_asset '^latest\.json$'
+
+          if grep -Eq '^(ffmpeg|lame)-' <<< "$asset_names"; then
+            echo "Standalone FFmpeg or LAME archives must not be published as release assets." >&2
+            exit 1
+          fi
 
           asset_api_url() {
             jq -er --arg pattern "$1" '
