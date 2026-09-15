@@ -65,9 +65,9 @@ jobs:
           - Bilibili URLs copied before startup or while the app is open are detected, filled into the download input, and parsed automatically.
 
           Downloads:
-          - Windows x64: NSIS installer (`.exe`)
-          - macOS Intel: disk image (`x64.dmg`, macOS 11 or later)
-          - macOS Apple Silicon: disk image (`aarch64.dmg`, macOS 11 or later)
+          - Windows x64: `BiliCatch_<version>_Windows_x64-setup.exe`
+          - macOS Intel: `BiliCatch_<version>_macOS_Intel.dmg` (macOS 11 or later)
+          - macOS Apple Silicon: `BiliCatch_<version>_macOS_AppleSilicon.dmg` (macOS 11 or later)
 
           The Windows installer is not Authenticode-signed. The macOS disk images are not Apple Developer signed or notarized. Only bypass an operating-system warning after verifying that the file came from this repository.
 
@@ -122,16 +122,19 @@ jobs:
             platform: windows
             target: x86_64-pc-windows-msvc
             bundles: nsis
+            asset_platform: Windows_x64
             macos_deployment_target: ""
           - runner: macos-15-intel
             platform: macos
             target: x86_64-apple-darwin
             bundles: app,dmg
+            asset_platform: macOS_Intel
             macos_deployment_target: "11.0"
           - runner: macos-15
             platform: macos
             target: aarch64-apple-darwin
             bundles: app,dmg
+            asset_platform: macOS_AppleSilicon
             macos_deployment_target: "11.0"
 
     runs-on: ${{ matrix.runner }}
@@ -295,6 +298,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseDraft: true
           prerelease: false
+          releaseAssetNamePattern: BiliCatch_[version]_${{ matrix.asset_platform }}[setup][ext]
           args: --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
       - name: Smoke test packaged macOS sidecar
@@ -381,14 +385,14 @@ jobs:
           }
 
           escaped_version="${version//./\\.}"
-          require_asset "^BiliCatch_${escaped_version}_x64-setup\\.exe$"
-          require_asset "^BiliCatch_${escaped_version}_x64-setup\\.exe\\.sig$"
-          require_asset "^BiliCatch_${escaped_version}_x64\\.dmg$"
-          require_asset "^BiliCatch_${escaped_version}_aarch64\\.dmg$"
-          require_asset "^BiliCatch_${escaped_version}_x64\\.app\\.tar\\.gz$"
-          require_asset "^BiliCatch_${escaped_version}_x64\\.app\\.tar\\.gz\\.sig$"
-          require_asset "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz$"
-          require_asset "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz\\.sig$"
+          require_asset "^BiliCatch_${escaped_version}_Windows_x64-setup\\.exe$"
+          require_asset "^BiliCatch_${escaped_version}_Windows_x64-setup\\.exe\\.sig$"
+          require_asset "^BiliCatch_${escaped_version}_macOS_Intel\\.dmg$"
+          require_asset "^BiliCatch_${escaped_version}_macOS_AppleSilicon\\.dmg$"
+          require_asset "^BiliCatch_${escaped_version}_macOS_Intel\\.app\\.tar\\.gz$"
+          require_asset "^BiliCatch_${escaped_version}_macOS_Intel\\.app\\.tar\\.gz\\.sig$"
+          require_asset "^BiliCatch_${escaped_version}_macOS_AppleSilicon\\.app\\.tar\\.gz$"
+          require_asset "^BiliCatch_${escaped_version}_macOS_AppleSilicon\\.app\\.tar\\.gz\\.sig$"
           require_asset '^latest\.json$'
 
           if grep -Eq '^(ffmpeg|lame)-' <<< "$asset_names"; then
@@ -405,9 +409,9 @@ jobs:
           export WINDOWS_UPDATE_URL
           export DARWIN_X64_UPDATE_URL
           export DARWIN_ARM64_UPDATE_URL
-          WINDOWS_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_x64-setup\\.exe$")"
-          DARWIN_X64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_x64\\.app\\.tar\\.gz$")"
-          DARWIN_ARM64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_aarch64\\.app\\.tar\\.gz$")"
+          WINDOWS_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_Windows_x64-setup\\.exe$")"
+          DARWIN_X64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_macOS_Intel\\.app\\.tar\\.gz$")"
+          DARWIN_ARM64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_macOS_AppleSilicon\\.app\\.tar\\.gz$")"
 
           check_dir="$RUNNER_TEMP/release-check"
           mkdir -p "$check_dir"
