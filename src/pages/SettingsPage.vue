@@ -100,7 +100,7 @@ onBeforeUnmount(() => window.removeEventListener("bilicatch:update-check", handl
       <button data-testid="settings-retry" type="button" class="command-button" @click="store.retryInitialize(service, effects)">{{ t("actions.retry") }}</button>
     </div>
     <div v-else-if="store.status !== 'ready' || !store.values" class="settings-skeleton" aria-busy="true" :aria-label="t('settings.loading')">
-      <div v-for="index in 11" :key="index" class="setting-skeleton"><span /><span /><span /></div>
+      <div v-for="index in 12" :key="index" class="setting-skeleton"><span /><span /><span /></div>
     </div>
     <div v-else class="settings-form">
       <DownloadSettings :values="store.values" :field-states="store.fieldStates" :picking="picking" @preview="preview" @commit="commit" @pick="selectDirectory" />

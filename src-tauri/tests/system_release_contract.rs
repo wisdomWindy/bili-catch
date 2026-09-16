@@ -1,6 +1,10 @@
-use bilicatch_lib::services::system::{
-    map_task_notification, validate_release_set, ReleaseArtifact, SidecarManifest,
-    SystemNotification, UpdateMachine, UpdateState, WindowDecision,
+use bilicatch_lib::{
+    models::TaskStatus,
+    services::system::{
+        map_task_notification, task_completion_notification, validate_release_set, ReleaseArtifact,
+        SidecarManifest, SystemNotification, TaskCompletionNotification, UpdateMachine,
+        UpdateState, WindowDecision,
+    },
 };
 
 #[test]
@@ -58,6 +62,38 @@ fn close_and_notification_policies_are_stable_and_private() {
         SystemNotification::TaskCompleted {
             file_name: "episode.mp4".into()
         }
+    );
+}
+
+#[test]
+fn completion_notification_requires_a_completed_task_and_enabled_notifications() {
+    assert_eq!(
+        task_completion_notification(TaskStatus::Downloading, "episode.mp4", "zh-CN", true, true),
+        None
+    );
+    assert_eq!(
+        task_completion_notification(TaskStatus::Completed, "episode.mp4", "zh-CN", false, true),
+        None
+    );
+}
+
+#[test]
+fn completion_notification_localizes_content_and_preserves_the_sound_preference() {
+    assert_eq!(
+        task_completion_notification(TaskStatus::Completed, "episode.mp4", "zh-CN", true, false),
+        Some(TaskCompletionNotification {
+            title: "下载完成".into(),
+            body: "episode.mp4 已下载完成".into(),
+            play_sound: false,
+        })
+    );
+    assert_eq!(
+        task_completion_notification(TaskStatus::Completed, "episode.mp4", "en-US", true, true),
+        Some(TaskCompletionNotification {
+            title: "Download completed".into(),
+            body: "episode.mp4 has finished downloading".into(),
+            play_sound: true,
+        })
     );
 }
 

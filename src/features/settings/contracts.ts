@@ -14,6 +14,7 @@ export interface SettingsValues {
   theme: ThemePreference;
   locale: AppLocale;
   notifyOnComplete: boolean;
+  completionSound: boolean;
   closeBehavior: CloseBehavior;
   autoCheckUpdates: boolean;
 }
@@ -34,6 +35,7 @@ export const SETTING_KEYS = [
   "theme",
   "locale",
   "notifyOnComplete",
+  "completionSound",
   "closeBehavior",
   "autoCheckUpdates",
 ] as const satisfies readonly (keyof SettingsValues)[];

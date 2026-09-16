@@ -159,6 +159,11 @@ fn missing_store_persists_complete_runtime_defaults() {
     assert_eq!(snapshot.values.max_concurrent_tasks, 3);
     assert_eq!(snapshot.values.connections_per_task, 8);
     assert_eq!(snapshot.values.locale, "zh-CN");
+    assert_eq!(
+        serde_json::to_value(&snapshot).expect("snapshot should serialize")["values"]
+            ["completionSound"],
+        json!(true)
+    );
     assert_eq!(store.saved(), vec![snapshot]);
 }
 

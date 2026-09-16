@@ -169,6 +169,7 @@ mod tests {
                 theme,
                 locale: "zh-CN".into(),
                 notify_on_complete: true,
+                completion_sound: true,
                 close_behavior: CloseBehavior::MinimizeToTray,
                 auto_check_updates: true,
             },

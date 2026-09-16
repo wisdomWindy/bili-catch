@@ -102,7 +102,7 @@ export const enUS = {
       downloadDirectory: "Download folder", temporaryDirectory: "Temporary files folder",
       maxConcurrentTasks: "Maximum concurrent tasks", connectionsPerTask: "Connections per task",
       defaultVideoQuality: "Default video quality", defaultAudioFormat: "Default audio format",
-      theme: "Theme", locale: "Language", notifyOnComplete: "Notify when downloads finish",
+      theme: "Theme", locale: "Language", notifyOnComplete: "Notify when downloads finish", completionSound: "Completion sound",
       closeBehavior: "When closing the window", autoCheckUpdates: "Check for updates automatically",
     },
     actions: { selectDownload: "Choose download folder", selectTemporary: "Choose temporary files folder" },

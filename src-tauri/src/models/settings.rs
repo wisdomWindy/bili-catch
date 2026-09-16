@@ -49,6 +49,7 @@ pub struct SettingsValues {
     pub theme: ThemePreference,
     pub locale: String,
     pub notify_on_complete: bool,
+    pub completion_sound: bool,
     pub close_behavior: CloseBehavior,
     pub auto_check_updates: bool,
 }
@@ -75,6 +76,7 @@ pub enum SettingsPatch {
     Theme(ThemePreference),
     Locale(String),
     NotifyOnComplete(bool),
+    CompletionSound(bool),
     CloseBehavior(CloseBehavior),
     AutoCheckUpdates(bool),
 }

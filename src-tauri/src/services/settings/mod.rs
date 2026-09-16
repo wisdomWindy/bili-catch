@@ -92,6 +92,7 @@ impl SettingsDefaults {
             theme: ThemePreference::System,
             locale: "zh-CN".into(),
             notify_on_complete: true,
+            completion_sound: true,
             close_behavior: CloseBehavior::MinimizeToTray,
             auto_check_updates: true,
         }
@@ -242,6 +243,10 @@ fn migrate_document(
                 .get("notifyOnComplete")
                 .and_then(Value::as_bool)
                 .unwrap_or(fallback.notify_on_complete),
+            completion_sound: values
+                .get("completionSound")
+                .and_then(Value::as_bool)
+                .unwrap_or(fallback.completion_sound),
             close_behavior: parse_or(values.get("closeBehavior"), fallback.close_behavior),
             auto_check_updates: values
                 .get("autoCheckUpdates")
@@ -324,6 +329,7 @@ fn apply_patch(values: &mut SettingsValues, patch: SettingsPatch) {
         SettingsPatch::Theme(value) => values.theme = value,
         SettingsPatch::Locale(value) => values.locale = value,
         SettingsPatch::NotifyOnComplete(value) => values.notify_on_complete = value,
+        SettingsPatch::CompletionSound(value) => values.completion_sound = value,
         SettingsPatch::CloseBehavior(value) => values.close_behavior = value,
         SettingsPatch::AutoCheckUpdates(value) => values.auto_check_updates = value,
     }

@@ -26,6 +26,7 @@ const base: SettingsSnapshot = {
     theme: "system",
     locale: "zh-CN",
     notifyOnComplete: true,
+    completionSound: true,
     closeBehavior: "minimizeToTray",
     autoCheckUpdates: true,
   },
@@ -70,12 +71,12 @@ async function renderReady(selectedDirectory: string | null = null) {
 }
 
 describe("SettingsPage", () => {
-  it("renders four continuous sections, 11 controls, and three about rows", async () => {
+  it("renders four continuous sections, 12 controls, and three about rows", async () => {
     const { wrapper } = await renderReady();
 
     expect(wrapper.get("[data-testid='page-heading']").text()).toBe("设置");
     expect(wrapper.findAll(".settings-section")).toHaveLength(4);
-    expect(wrapper.findAll("[data-setting-field]")).toHaveLength(11);
+    expect(wrapper.findAll("[data-setting-field]")).toHaveLength(12);
     expect(wrapper.findAll("[data-about-row]")).toHaveLength(3);
     expect(wrapper.text()).not.toContain("手动保存");
     expect(wrapper.find(".empty-state").exists()).toBe(false);
@@ -83,7 +84,19 @@ describe("SettingsPage", () => {
       const label = row.get("label");
       expect(row.get(`#${label.attributes("for")}`).attributes("id")).toBe(label.attributes("for"));
     }
-    expect(wrapper.findAll("[role='switch']")).toHaveLength(2);
+    expect(wrapper.findAll("[role='switch']")).toHaveLength(3);
+  });
+
+  it("saves the completion sound preference and disables it when notifications are off", async () => {
+    const { wrapper, service } = await renderReady();
+
+    await wrapper.get("#setting-completion-sound").setValue(false);
+    await flushPromises();
+    expect(service.update).toHaveBeenCalledWith({ field: "completionSound", value: false });
+
+    await wrapper.get("#setting-notify").setValue(false);
+    await flushPromises();
+    expect(wrapper.get("#setting-completion-sound").attributes("disabled")).toBeDefined();
   });
 
   it("saves selected directories, treats cancel as a no-op, and restores button focus", async () => {
@@ -134,7 +147,7 @@ describe("SettingsPage", () => {
     const loading = mount(SettingsPage, {
       global: { plugins: [pinia, createAppI18n()] },
     });
-    expect(loading.findAll(".setting-skeleton")).toHaveLength(11);
+    expect(loading.findAll(".setting-skeleton")).toHaveLength(12);
     loading.unmount();
 
     const failedPinia = createPinia();

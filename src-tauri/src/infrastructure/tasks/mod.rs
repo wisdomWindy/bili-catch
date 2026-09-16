@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::models::{AppError, DownloadTask, TaskControlRequest, TaskStatus};
 
 mod tauri_adapter;
-pub use tauri_adapter::{FileTaskCleaner, TauriTaskEventSink};
+pub use tauri_adapter::{FileTaskCleaner, TauriTaskCompletionNotifier, TauriTaskEventSink};
 
 const SCHEMA_VERSION: u32 = 1;
 

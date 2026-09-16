@@ -25,6 +25,7 @@ describe("settings contracts", () => {
       "theme",
       "locale",
       "notifyOnComplete",
+      "completionSound",
       "closeBehavior",
       "autoCheckUpdates",
     ]);
@@ -54,6 +55,7 @@ describe("settings contracts", () => {
         theme: "system",
         locale: "zh-CN",
         notifyOnComplete: true,
+        completionSound: true,
         closeBehavior: "minimizeToTray",
         autoCheckUpdates: true,
       },

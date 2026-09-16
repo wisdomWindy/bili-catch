@@ -13,6 +13,7 @@ function checked(event: Event): boolean { return (event.target as HTMLInputEleme
 <template>
   <SettingSection id="system-settings" :title="$t('settings.sections.system')">
     <SettingRow id="setting-notify" field="notifyOnComplete" :label="$t('settings.fields.notifyOnComplete')" :status="fieldStates.notifyOnComplete"><input id="setting-notify" class="switch-control" type="checkbox" role="switch" :checked="values.notifyOnComplete" aria-describedby="setting-notify-status" @change="emit('commit', { field: 'notifyOnComplete', value: checked($event) })" /></SettingRow>
+    <SettingRow id="setting-completion-sound" field="completionSound" :label="$t('settings.fields.completionSound')" :status="fieldStates.completionSound"><input id="setting-completion-sound" class="switch-control" type="checkbox" role="switch" :checked="values.completionSound" :disabled="!values.notifyOnComplete" aria-describedby="setting-completion-sound-status" @change="emit('commit', { field: 'completionSound', value: checked($event) })" /></SettingRow>
     <SettingRow id="setting-close-behavior" field="closeBehavior" :label="$t('settings.fields.closeBehavior')" :status="fieldStates.closeBehavior">
       <select id="setting-close-behavior" :value="values.closeBehavior" aria-describedby="setting-close-behavior-status" @change="emit('commit', { field: 'closeBehavior', value: selected($event) })"><option v-for="option in CLOSE_BEHAVIOR_OPTIONS" :key="option.value" :value="option.value">{{ $t(option.labelKey) }}</option></select>
     </SettingRow>

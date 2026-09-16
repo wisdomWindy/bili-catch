@@ -35,6 +35,7 @@ function settingsFixture(): SettingsService {
         theme: "system",
         locale: "zh-CN",
         notifyOnComplete: true,
+        completionSound: true,
         closeBehavior: "minimizeToTray",
         autoCheckUpdates: true,
       },

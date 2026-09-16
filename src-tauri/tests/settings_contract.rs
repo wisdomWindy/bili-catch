@@ -15,6 +15,7 @@ fn values() -> SettingsValues {
         theme: ThemePreference::System,
         locale: "zh-CN".into(),
         notify_on_complete: true,
+        completion_sound: true,
         close_behavior: CloseBehavior::MinimizeToTray,
         auto_check_updates: true,
     }
@@ -43,8 +44,30 @@ fn settings_snapshot_serializes_to_the_frontend_contract() {
                 "theme": "system",
                 "locale": "zh-CN",
                 "notifyOnComplete": true,
+                "completionSound": true,
                 "closeBehavior": "minimizeToTray",
                 "autoCheckUpdates": true
+            }
+        })
+    );
+}
+
+#[test]
+fn completion_sound_patch_uses_the_boolean_frontend_contract() {
+    let request: UpdateSettingRequest = serde_json::from_value(json!({
+        "patch": {
+            "field": "completionSound",
+            "value": false
+        }
+    }))
+    .expect("completion sound patch should deserialize");
+
+    assert_eq!(
+        serde_json::to_value(request).expect("completion sound patch should serialize"),
+        json!({
+            "patch": {
+                "field": "completionSound",
+                "value": false
             }
         })
     );

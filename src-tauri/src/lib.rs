@@ -73,6 +73,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
             #[cfg(desktop)]
@@ -122,12 +123,19 @@ pub fn run() {
             app.manage(settings_manager.clone());
 
             let store_path = app.path().app_data_dir()?.join("tasks.json");
+            let task_events = Arc::new(services::tasks::CompletionNotifyingTaskEventSink::new(
+                Arc::new(infrastructure::tasks::TauriTaskEventSink::new(
+                    app.handle().clone(),
+                )),
+                settings_manager.clone(),
+                Arc::new(infrastructure::tasks::TauriTaskCompletionNotifier::new(
+                    app.handle().clone(),
+                )),
+            ));
             let task_manager = Arc::new(
                 services::tasks::TaskManager::new(
                     Arc::new(infrastructure::tasks::JsonTaskStore::new(store_path)),
-                    Arc::new(infrastructure::tasks::TauriTaskEventSink::new(
-                        app.handle().clone(),
-                    )),
+                    task_events,
                     Arc::new(infrastructure::tasks::FileTaskCleaner),
                     settings_manager,
                 )

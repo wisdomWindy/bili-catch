@@ -102,7 +102,7 @@ export const zhCN = {
       downloadDirectory: "下载目录", temporaryDirectory: "临时文件目录",
       maxConcurrentTasks: "最大并发任务数", connectionsPerTask: "单任务连接数",
       defaultVideoQuality: "默认视频清晰度", defaultAudioFormat: "默认音频格式",
-      theme: "主题", locale: "语言", notifyOnComplete: "下载完成后通知",
+      theme: "主题", locale: "语言", notifyOnComplete: "下载完成后通知", completionSound: "完成提示音",
       closeBehavior: "关闭窗口行为", autoCheckUpdates: "自动检查更新",
     },
     actions: { selectDownload: "选择下载目录", selectTemporary: "选择临时文件目录" },

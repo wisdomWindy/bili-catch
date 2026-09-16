@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::models::{AppError, AppErrorCode};
+use crate::models::{AppError, AppErrorCode, TaskStatus};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -190,6 +190,38 @@ pub enum SystemNotification {
     TaskCompleted { file_name: String },
     TaskFailed { file_name: String },
     UpdateAvailable { version: String },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskCompletionNotification {
+    pub title: String,
+    pub body: String,
+    pub play_sound: bool,
+}
+
+pub fn task_completion_notification(
+    status: TaskStatus,
+    file_name: &str,
+    locale: &str,
+    notify_on_complete: bool,
+    completion_sound: bool,
+) -> Option<TaskCompletionNotification> {
+    if status != TaskStatus::Completed || !notify_on_complete {
+        return None;
+    }
+    let (title, body) = if locale == "zh-CN" {
+        ("下载完成".to_owned(), format!("{file_name} 已下载完成"))
+    } else {
+        (
+            "Download completed".to_owned(),
+            format!("{file_name} has finished downloading"),
+        )
+    };
+    Some(TaskCompletionNotification {
+        title,
+        body,
+        play_sound: completion_sound,
+    })
 }
 
 pub fn map_task_notification(status: &str, file_name: &str) -> SystemNotification {

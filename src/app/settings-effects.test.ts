@@ -15,6 +15,7 @@ const values: SettingsValues = {
   theme: "dark",
   locale: "en-US",
   notifyOnComplete: true,
+  completionSound: true,
   closeBehavior: "minimizeToTray",
   autoCheckUpdates: true,
 };

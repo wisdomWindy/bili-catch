@@ -2,6 +2,7 @@ mod coalescing;
 mod filename;
 mod manager;
 mod mutations;
+mod notifications;
 mod ports;
 mod state_machine;
 mod validation;
@@ -9,6 +10,10 @@ mod validation;
 pub use filename::{sanitize_audio_filename, sanitize_filename};
 pub use manager::TaskManager;
 pub use mutations::ExecutionUpdate;
+pub use notifications::{
+    CompletionNotificationSettings, CompletionNotificationSettingsPort,
+    CompletionNotifyingTaskEventSink, TaskCompletionNotifier,
+};
 pub use ports::{
     DeferredTaskExecutor, ExecutionControlSpec, SchedulerLimits, TaskCleanerPort, TaskEventSink,
     TaskExecutionSpec, TaskExecutorPort, TaskSettingsPort, TaskStorePort,
