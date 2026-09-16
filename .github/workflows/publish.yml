@@ -61,12 +61,7 @@ jobs:
           set -euo pipefail
           cat > "$RUNNER_TEMP/release-body.md" <<'BODY'
           Changes:
-          - Rejects Bilibili WBI voucher and empty DASH responses instead of creating unusable download tasks.
-          - Retries alternate DASH CDN URLs when a media request is temporarily rejected.
-          - Makes the tray update action open the settings page and start a visible update check.
-          - Prevents FFmpeg from opening a console window during audio processing or video muxing on Windows.
-          - Displays the packaged application version instead of a hard-coded version label.
-          - Keeps the task list scrollbar visible when its content exceeds the application height.
+          - Fixes in-app update installation by using public Release download URLs instead of rate-limited GitHub API asset endpoints.
 
           Downloads:
           - Windows x64: `BiliCatch_<version>_Windows_x64-setup.exe`
@@ -368,7 +363,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validate release assets and updater manifest
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Normalize and validate release assets and updater manifest
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -410,12 +408,18 @@ jobs:
               if length == 1 then .[0].url else error("expected exactly one matching updater asset") end
             ' "$assets_file"
           }
+          asset_download_url() {
+            jq -er --arg pattern "$1" '
+              [.[] | select(.name | test($pattern))] |
+              if length == 1 then .[0].browser_download_url else error("expected exactly one matching updater asset") end
+            ' "$assets_file"
+          }
           export WINDOWS_UPDATE_URL
           export DARWIN_X64_UPDATE_URL
           export DARWIN_ARM64_UPDATE_URL
-          WINDOWS_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_Windows_x64-setup\\.exe$")"
-          DARWIN_X64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_macOS_Intel\\.app\\.tar\\.gz$")"
-          DARWIN_ARM64_UPDATE_URL="$(asset_api_url "^BiliCatch_${escaped_version}_macOS_AppleSilicon\\.app\\.tar\\.gz$")"
+          WINDOWS_UPDATE_URL="$(asset_download_url "^BiliCatch_${escaped_version}_Windows_x64-setup\\.exe$")"
+          DARWIN_X64_UPDATE_URL="$(asset_download_url "^BiliCatch_${escaped_version}_macOS_Intel\\.app\\.tar\\.gz$")"
+          DARWIN_ARM64_UPDATE_URL="$(asset_download_url "^BiliCatch_${escaped_version}_macOS_AppleSilicon\\.app\\.tar\\.gz$")"
 
           check_dir="$RUNNER_TEMP/release-check"
           mkdir -p "$check_dir"
@@ -426,6 +430,7 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --output "$check_dir/latest.json" \
             "$latest_json_url"
+          node scripts/rewrite-updater-manifest.mjs "$check_dir/latest.json" "$assets_file"
           export RELEASE_VERSION="$version"
           jq -e '
             . as $manifest |
@@ -438,6 +443,12 @@ jobs:
             $manifest.platforms["darwin-x86_64"].url == env.DARWIN_X64_UPDATE_URL and
             $manifest.platforms["darwin-aarch64"].url == env.DARWIN_ARM64_UPDATE_URL
           ' "$check_dir/latest.json"
+
+          gh release upload "$GITHUB_REF_NAME" "$check_dir/latest.json" --clobber
+          verify_dir="$RUNNER_TEMP/release-verify"
+          mkdir -p "$verify_dir"
+          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir "$verify_dir"
+          cmp "$check_dir/latest.json" "$verify_dir/latest.json"
 
       - name: Publish validated release
         shell: bash
