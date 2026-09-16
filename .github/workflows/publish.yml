@@ -408,18 +408,13 @@ jobs:
               if length == 1 then .[0].url else error("expected exactly one matching updater asset") end
             ' "$assets_file"
           }
-          asset_download_url() {
-            jq -er --arg pattern "$1" '
-              [.[] | select(.name | test($pattern))] |
-              if length == 1 then .[0].browser_download_url else error("expected exactly one matching updater asset") end
-            ' "$assets_file"
-          }
           export WINDOWS_UPDATE_URL
           export DARWIN_X64_UPDATE_URL
           export DARWIN_ARM64_UPDATE_URL
-          WINDOWS_UPDATE_URL="$(asset_download_url "^BiliCatch_${escaped_version}_Windows_x64-setup\\.exe$")"
-          DARWIN_X64_UPDATE_URL="$(asset_download_url "^BiliCatch_${escaped_version}_macOS_Intel\\.app\\.tar\\.gz$")"
-          DARWIN_ARM64_UPDATE_URL="$(asset_download_url "^BiliCatch_${escaped_version}_macOS_AppleSilicon\\.app\\.tar\\.gz$")"
+          release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          WINDOWS_UPDATE_URL="$release_base/BiliCatch_${version}_Windows_x64-setup.exe"
+          DARWIN_X64_UPDATE_URL="$release_base/BiliCatch_${version}_macOS_Intel.app.tar.gz"
+          DARWIN_ARM64_UPDATE_URL="$release_base/BiliCatch_${version}_macOS_AppleSilicon.app.tar.gz"
 
           check_dir="$RUNNER_TEMP/release-check"
           mkdir -p "$check_dir"
@@ -430,7 +425,10 @@ jobs:
             --header "X-GitHub-Api-Version: 2022-11-28" \
             --output "$check_dir/latest.json" \
             "$latest_json_url"
-          node scripts/rewrite-updater-manifest.mjs "$check_dir/latest.json" "$assets_file"
+          node scripts/rewrite-updater-manifest.mjs \
+            "$check_dir/latest.json" \
+            "$assets_file" \
+            "$GITHUB_REPOSITORY"
           export RELEASE_VERSION="$version"
           jq -e '
             . as $manifest |

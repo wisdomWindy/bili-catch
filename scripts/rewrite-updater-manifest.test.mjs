@@ -36,8 +36,15 @@ function assets() {
 }
 
 describe("updater manifest rewriting", () => {
-  it("replaces GitHub API asset URLs with public release download URLs", () => {
-    const rewritten = rewriteUpdaterManifest(manifest(), assets());
+  it("replaces draft asset URLs with stable public release download URLs", () => {
+    const draftAssets = assets().map((asset) => ({
+      ...asset,
+      browser_download_url: asset.browser_download_url.replace(
+        "/download/v0.1.14/",
+        "/download/untagged-draft-id/",
+      ),
+    }));
+    const rewritten = rewriteUpdaterManifest(manifest(), draftAssets, "wisdomWindy/bili-catch");
 
     expect(rewritten.platforms["windows-x86_64"].url).toBe(
       `${releaseBase}/BiliCatch_0.1.14_Windows_x64-setup.exe`,
@@ -54,12 +61,9 @@ describe("updater manifest rewriting", () => {
     expect(rewritten.platforms["windows-x86_64"].signature).toBe("windows-signature");
   });
 
-  it("rejects an asset that does not expose a public GitHub release URL", () => {
-    const invalidAssets = assets();
-    invalidAssets[0].browser_download_url = "https://api.github.com/repos/example/releases/assets/1";
-
-    expect(() => rewriteUpdaterManifest(manifest(), invalidAssets)).toThrow(
-      "public GitHub release download URL",
+  it("rejects an invalid repository identifier", () => {
+    expect(() => rewriteUpdaterManifest(manifest(), assets(), "https://example.com/repo")).toThrow(
+      "owner/name",
     );
   });
 });

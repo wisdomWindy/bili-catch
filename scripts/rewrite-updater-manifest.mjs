@@ -2,21 +2,19 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-function releaseAssetUrl(assets, name, version) {
+function releaseAssetUrl(assets, name, version, repository) {
   const matches = assets.filter((asset) => asset.name === name);
   if (matches.length !== 1) {
     throw new Error(`Expected exactly one release asset named ${name}`);
   }
 
-  const url = new URL(matches[0].browser_download_url);
-  const expectedPath = `/releases/download/v${version}/${name}`;
-  if (url.protocol !== "https:" || url.hostname !== "github.com" || !url.pathname.endsWith(expectedPath)) {
-    throw new Error(`${name} must expose a public GitHub release download URL`);
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
+    throw new Error("Repository must use the owner/name format");
   }
-  return url.toString();
+  return `https://github.com/${repository}/releases/download/v${version}/${encodeURIComponent(name)}`;
 }
 
-export function rewriteUpdaterManifest(manifest, assets) {
+export function rewriteUpdaterManifest(manifest, assets, repository) {
   if (!manifest?.version || !manifest?.platforms) {
     throw new Error("Updater manifest is missing its version or platforms");
   }
@@ -38,7 +36,7 @@ export function rewriteUpdaterManifest(manifest, assets) {
   ];
 
   for (const mapping of mappings) {
-    const url = releaseAssetUrl(assets, mapping.name, manifest.version);
+    const url = releaseAssetUrl(assets, mapping.name, manifest.version, repository);
     const primary = mapping.platforms[0];
     if (!rewritten.platforms[primary]) {
       throw new Error(`Updater manifest is missing ${primary}`);
@@ -55,12 +53,14 @@ export function rewriteUpdaterManifest(manifest, assets) {
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 if (invokedPath === import.meta.url) {
-  const [manifestPath, assetsPath] = process.argv.slice(2);
-  if (!manifestPath || !assetsPath) {
-    throw new Error("Usage: node rewrite-updater-manifest.mjs <latest.json> <release-assets.json>");
+  const [manifestPath, assetsPath, repository] = process.argv.slice(2);
+  if (!manifestPath || !assetsPath || !repository) {
+    throw new Error(
+      "Usage: node rewrite-updater-manifest.mjs <latest.json> <release-assets.json> <owner/repository>",
+    );
   }
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   const assets = JSON.parse(fs.readFileSync(assetsPath, "utf8"));
-  const rewritten = rewriteUpdaterManifest(manifest, assets);
+  const rewritten = rewriteUpdaterManifest(manifest, assets, repository);
   fs.writeFileSync(manifestPath, `${JSON.stringify(rewritten, null, 2)}\n`, "utf8");
 }
