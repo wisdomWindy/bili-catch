@@ -284,9 +284,11 @@ impl BilibiliPort for BilibiliClient {
                 envelope.message,
             )));
         }
-        envelope
+        let play = envelope
             .data
-            .ok_or_else(|| AppError::internal("Bilibili media capabilities are missing").into())
+            .ok_or_else(|| AppError::internal("Bilibili media capabilities are missing"))?;
+        play.ensure_playable()?;
+        Ok(play)
     }
 }
 

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { darkTheme, NConfigProvider, NDialogProvider, NMessageProvider, NNotificationProvider } from "naive-ui";
 import { useI18n } from "vue-i18n";
+import { useRouter } from "vue-router";
 import { AlertTriangle } from "@lucide/vue";
 import type { AppIpcService } from "../services/ipc/app";
 import { installThemeSync, useAppStore } from "../stores/app";
@@ -23,9 +24,16 @@ const settingsStore = useSettingsStore();
 const settingsService = useSettingsService();
 const settingsEffects = useSettingsEffectSink();
 const { locale, t } = useI18n();
+const router = useRouter();
 const resolvedTheme = ref<ResolvedTheme>("light");
 const naiveTheme = computed(() => resolvedTheme.value === "dark" ? darkTheme : null);
 let disposeTheme: (() => void) | undefined;
+
+async function handleTrayUpdateCheck() {
+  await router.push({ name: "settings" });
+  await nextTick();
+  window.dispatchEvent(new Event("bilicatch:update-check"));
+}
 
 watch(() => store.locale, (nextLocale) => {
   locale.value = nextLocale;
@@ -38,12 +46,14 @@ onMounted(() => {
   void store.initialize(props.appService);
   void authStore.initialize(authService, authEvents);
   void settingsStore.initialize(settingsService, settingsEffects);
+  window.addEventListener("bilicatch:tray-update-check", handleTrayUpdateCheck);
 });
 
 onBeforeUnmount(() => {
   disposeTheme?.();
   authStore.dispose();
   settingsStore.dispose();
+  window.removeEventListener("bilicatch:tray-update-check", handleTrayUpdateCheck);
 });
 </script>
 

@@ -1,0 +1,26 @@
+{
+  "request_id": "bilicatch-task-scrollbar-visibility-20260916",
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/request.md",
+    "bugfix_source": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/artifacts/bugfix-source.md",
+    "code_context": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/artifacts/code-context.md",
+    "spec": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/spec/spec.md",
+    "plan": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/verification/verification.md",
+    "review": "docs/requests/bilicatch-task-scrollbar-visibility-20260916/review/review.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "loop": {
+    "iteration": 6,
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}

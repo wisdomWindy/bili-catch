@@ -165,11 +165,17 @@ pub fn run() {
                     "show-window" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
+                            let _ = window.unminimize();
                             let _ = window.set_focus();
                         }
                     }
                     "quit" => app.exit(0),
                     "check-updates" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
                         let _ = app.emit("system:update-check-requested", ());
                     }
                     _ => {}

@@ -25,6 +25,8 @@ use super::support::{
 
 type UrlValidator = Arc<dyn Fn(&str) -> Result<Url, AppError> + Send + Sync>;
 
+const MEDIA_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MediaCheckpoint {
@@ -59,7 +61,7 @@ impl HttpByteDownloader {
             .redirect(Policy::none())
             .connect_timeout(std::time::Duration::from_secs(8))
             .timeout(std::time::Duration::from_secs(30))
-            .user_agent("Mozilla/5.0 BiliCatch/0.1")
+            .user_agent(MEDIA_USER_AGENT)
             .build()
             .map_err(|_| AppError::internal("Unable to initialize the media downloader"))?;
         Ok(Self {
@@ -201,6 +203,13 @@ impl HttpByteDownloader {
                     return Err(AppError::new(
                         AppErrorCode::E006,
                         "The current account cannot access this media source",
+                    ))
+                }
+                StatusCode::REQUEST_TIMEOUT
+                | StatusCode::PRECONDITION_FAILED
+                | StatusCode::TOO_MANY_REQUESTS => {
+                    return Err(network_failure(
+                        "The media CDN temporarily rejected the request",
                     ))
                 }
                 status if status.is_client_error() => {
@@ -528,7 +537,7 @@ mod tests {
     }
 
     #[test]
-    fn sends_bilibili_referer_with_every_media_request() {
+    fn sends_browser_media_headers_with_every_media_request() {
         tauri::async_runtime::block_on(async {
             let (url, requests) = serve(vec![
                 "HTTP/1.1 302 Found\r\nLocation: /redirected.m4s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
@@ -541,10 +550,42 @@ mod tests {
             let requests = requests.lock().unwrap();
             assert_eq!(requests.len(), 2);
             for request in requests.iter() {
-                assert!(request
-                    .to_ascii_lowercase()
-                    .contains("referer: https://www.bilibili.com/\r\n"));
+                let request = request.to_ascii_lowercase();
+                assert!(request.contains("referer: https://www.bilibili.com/\r\n"));
+                assert!(request.contains(
+                    "user-agent: mozilla/5.0 (windows nt 10.0; win64; x64) applewebkit/537.36"
+                ));
+                assert!(request.contains("chrome/"));
+                assert!(request.contains("safari/537.36"));
             }
+        });
+    }
+
+    #[test]
+    fn retries_a_backup_url_after_cdn_precondition_rejection() {
+        tauri::async_runtime::block_on(async {
+            let (url, requests) = serve(vec![
+                "HTTP/1.1 412 Precondition Failed\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Length: 11\r\nConnection: close\r\n\r\nhello world",
+            ]);
+            let (_temp, _output, mut request) = setup(url.clone());
+            request.source.backup_urls = vec![format!("{url}?backup=1")];
+
+            let outcome = downloader()
+                .download(
+                    request.clone(),
+                    DownloadControl::new(),
+                    &RecordingProgress(Mutex::new(Vec::new())),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(outcome, DownloadOutcome::Completed);
+            assert_eq!(
+                fs::read(&request.workspace.source_path).unwrap(),
+                b"hello world"
+            );
+            assert_eq!(requests.lock().unwrap().len(), 2);
         });
     }
 

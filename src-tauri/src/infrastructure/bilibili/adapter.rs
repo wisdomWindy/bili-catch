@@ -28,6 +28,7 @@ pub(crate) fn adapt_parse_result(
     requested_page: Option<u32>,
 ) -> Result<ParseVideoResult, AppError> {
     select_part(&view, requested_page)?;
+    play.ensure_playable()?;
 
     let video_variants = play
         .dash
@@ -228,6 +229,35 @@ mod tests {
         let error =
             adapt_parse_result(view.data.unwrap(), play.data.unwrap(), Some(99)).unwrap_err();
         assert_eq!(serde_json::to_value(error).unwrap()["code"], "E004");
+    }
+
+    #[test]
+    fn rejects_voucher_and_empty_dash_payloads_before_exposing_parse_success() {
+        let view: ApiResponse<ViewData> =
+            serde_json::from_str(include_str!("../../../tests/fixtures/bilibili-view.json"))
+                .unwrap();
+        let payloads = [
+            r#"{
+              "code":0,"message":"0","data":{
+                "accept_quality":[80],"accept_description":["1080P"],
+                "v_voucher":"fixture-voucher"
+              }
+            }"#,
+            r#"{
+              "code":0,"message":"0","data":{
+                "accept_quality":[80],"accept_description":["1080P"],
+                "dash":{}
+              }
+            }"#,
+        ];
+
+        for payload in payloads {
+            let play: ApiResponse<PlayData> = serde_json::from_str(payload).unwrap();
+            let error = adapt_parse_result(view.data.clone().unwrap(), play.data.unwrap(), None)
+                .expect_err("unplayable WBI payloads must not become successful parse results");
+
+            assert_eq!(error.code, crate::models::AppErrorCode::E004);
+        }
     }
 
     #[test]

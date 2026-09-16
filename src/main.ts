@@ -104,6 +104,6 @@ createApp(App, { appService })
 
 if (!demoMode) {
   void tauriListen("system:update-check-requested", () => {
-    window.dispatchEvent(new Event("bilicatch:update-check"));
+    window.dispatchEvent(new Event("bilicatch:tray-update-check"));
   });
 }

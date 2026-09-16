@@ -3,10 +3,12 @@ import { Clapperboard } from "@lucide/vue";
 import { useI18n } from "vue-i18n";
 import { useRoute, useRouter } from "vue-router";
 import { primaryNavigation } from "../../app/navigation";
+import { useAppStore } from "../../stores/app";
 
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
+const appStore = useAppStore();
 
 function titleKeyFor(name: string): string {
   return router.resolve({ name }).meta.titleKey;
@@ -40,7 +42,7 @@ function titleKeyFor(name: string): string {
     </nav>
 
     <footer class="sidebar-footer">
-      <span class="version-label">{{ t("shell.version", { version: "0.1.0" }) }}</span>
+      <span class="version-label">{{ t("shell.version", { version: appStore.appInfo?.version ?? "…" }) }}</span>
       <span class="status-dot" :title="t('status.checking')" aria-hidden="true" />
     </footer>
   </aside>

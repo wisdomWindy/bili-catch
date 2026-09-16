@@ -6,16 +6,16 @@
     "accept_description": ["4K 超清", "1080P 高清", "720P 高清", "480P 清晰"],
     "dash": {
       "video": [
-        { "id": 80, "codecs": "avc1.640032" },
-        { "id": 80, "codecs": "hev1.1.6.L120.90" },
-        { "id": 80, "codecs": "av01.0.08M.08" },
-        { "id": 64, "codecs": "avc1.640028" },
-        { "id": 32, "codecs": "avc1.64001f" }
+        { "id": 80, "baseUrl": "https://a.bilivideo.com/video-80-avc.m4s", "backupUrl": [], "bandwidth": 3000000, "mimeType": "video/mp4", "codecs": "avc1.640032" },
+        { "id": 80, "baseUrl": "https://a.bilivideo.com/video-80-hevc.m4s", "backupUrl": [], "bandwidth": 2500000, "mimeType": "video/mp4", "codecs": "hev1.1.6.L120.90" },
+        { "id": 80, "baseUrl": "https://a.bilivideo.com/video-80-av1.m4s", "backupUrl": [], "bandwidth": 2200000, "mimeType": "video/mp4", "codecs": "av01.0.08M.08" },
+        { "id": 64, "baseUrl": "https://a.bilivideo.com/video-64.m4s", "backupUrl": [], "bandwidth": 1800000, "mimeType": "video/mp4", "codecs": "avc1.640028" },
+        { "id": 32, "baseUrl": "https://a.bilivideo.com/video-32.m4s", "backupUrl": [], "bandwidth": 900000, "mimeType": "video/mp4", "codecs": "avc1.64001f" }
       ],
       "audio": [
-        { "bandwidth": 192000 },
-        { "bandwidth": 128000 },
-        { "bandwidth": 128000 }
+        { "id": 30280, "baseUrl": "https://a.bilivideo.com/audio-192.m4s", "backupUrl": [], "bandwidth": 192000, "mimeType": "audio/mp4", "codecs": "mp4a.40.2" },
+        { "id": 30232, "baseUrl": "https://a.bilivideo.com/audio-128-a.m4s", "backupUrl": [], "bandwidth": 128000, "mimeType": "audio/mp4", "codecs": "mp4a.40.2" },
+        { "id": 30216, "baseUrl": "https://a.bilivideo.com/audio-128-b.m4s", "backupUrl": [], "bandwidth": 128000, "mimeType": "audio/mp4", "codecs": "mp4a.40.2" }
       ]
     }
   }

@@ -6,6 +6,7 @@ import { createAppI18n } from "../../locales";
 import { createAppRouter } from "../../app/router";
 import AppShell from "./AppShell.vue";
 import { useAuthStore } from "../../features/authentication/store";
+import { useAppStore } from "../../stores/app";
 
 async function mountShell(path = "/download") {
   const pinia = createPinia();
@@ -71,6 +72,15 @@ describe("AppShell", () => {
 
     expect(wrapper.get("[data-testid='auth-button']").text()).toContain("Fixture account");
     expect(wrapper.get("[data-testid='auth-button']").attributes("aria-label")).toContain("Fixture account");
+  });
+
+  it("shows the runtime package version instead of a hard-coded release", async () => {
+    const { wrapper, pinia } = await mountShell();
+    useAppStore(pinia).appInfo = { name: "BiliCatch", version: "0.1.12" };
+    await flushPromises();
+
+    expect(wrapper.get(".version-label").text()).toContain("0.1.12");
+    expect(wrapper.get(".version-label").text()).not.toContain("0.1.0");
   });
 
   it("distinguishes restoring authentication from an anonymous account", async () => {

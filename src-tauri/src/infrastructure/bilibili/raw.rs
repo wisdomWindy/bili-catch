@@ -41,7 +41,38 @@ pub(crate) struct PlayData {
     pub accept_quality: Vec<u32>,
     #[serde(default)]
     pub accept_description: Vec<String>,
+    #[serde(default)]
+    pub v_voucher: Option<serde_json::Value>,
     pub dash: Option<RawDash>,
+}
+
+impl PlayData {
+    pub(crate) fn ensure_playable(&self) -> Result<(), crate::models::AppError> {
+        let playable = self.v_voucher.is_none()
+            && self.dash.as_ref().is_some_and(|dash| {
+                dash.video
+                    .iter()
+                    .any(|stream| !stream.resolved_base_url().trim().is_empty())
+                    || dash
+                        .audio
+                        .iter()
+                        .any(|stream| !stream.resolved_base_url().trim().is_empty())
+                    || dash
+                        .flac
+                        .as_ref()
+                        .filter(|flac| flac.display)
+                        .and_then(|flac| flac.audio.as_ref())
+                        .is_some_and(|stream| !stream.resolved_base_url().trim().is_empty())
+            });
+        if playable {
+            Ok(())
+        } else {
+            Err(crate::models::AppError::new(
+                crate::models::AppErrorCode::E004,
+                "Bilibili returned no playable media streams",
+            ))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

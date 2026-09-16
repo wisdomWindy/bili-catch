@@ -193,7 +193,10 @@ impl FfmpegRunner for TokioFfmpegRunner {
         arguments: Vec<OsString>,
         control: ProcessControl,
     ) -> Result<RunnerOutcome, AppError> {
-        let mut child = Command::new(executable)
+        let mut command = Command::new(executable);
+        #[cfg(windows)]
+        command.creation_flags(0x0800_0000);
+        let mut child = command
             .args(arguments)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -298,7 +301,7 @@ mod tests {
 
     use super::{
         DeferredFfmpegMediaProcessor, FfmpegLocator, FfmpegMediaProcessor, FfmpegRunner,
-        RunnerOutcome,
+        RunnerOutcome, TokioFfmpegRunner,
     };
     use crate::{
         models::{AppError, AudioOutputProfile},
@@ -307,6 +310,35 @@ mod tests {
             ProcessOutcome,
         },
     };
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_ffmpeg_runner_does_not_create_or_attach_a_console() {
+        tauri::async_runtime::block_on(async {
+            let temp = tempfile::tempdir().unwrap();
+            let probe = temp.path().join("console-state.txt");
+            let probe_path = probe.to_string_lossy().replace('\'', "''");
+            let script = format!(
+                "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class ConsoleProbe {{ [DllImport(\"kernel32.dll\")] public static extern IntPtr GetConsoleWindow(); }}'; $state = if ([ConsoleProbe]::GetConsoleWindow() -eq [IntPtr]::Zero) {{ 'hidden' }} else {{ 'visible' }}; Set-Content -LiteralPath '{probe_path}' -Value $state -NoNewline"
+            );
+            let arguments = vec![
+                "-NoProfile".into(),
+                "-NonInteractive".into(),
+                "-Command".into(),
+                script.into(),
+            ];
+            let executable = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+
+            let outcome = TokioFfmpegRunner
+                .run(&executable, arguments, ProcessControl::new())
+                .await
+                .unwrap();
+
+            assert_eq!(outcome, RunnerOutcome::Completed);
+            assert_eq!(std::fs::read_to_string(probe).unwrap(), "hidden");
+        });
+    }
 
     struct FakeRunner {
         outcome: RunnerOutcome,
