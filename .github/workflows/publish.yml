@@ -61,7 +61,8 @@ jobs:
           set -euo pipefail
           cat > "$RUNNER_TEMP/release-body.md" <<'BODY'
           Changes:
-          - Fixes in-app update installation by using public Release download URLs instead of rate-limited GitHub API asset endpoints.
+          - Sends a native system notification when a download completes.
+          - Adds a setting to enable or disable the completion sound while keeping completion notifications enabled.
 
           Downloads:
           - Windows x64: `BiliCatch_<version>_Windows_x64-setup.exe`
