@@ -61,8 +61,12 @@ jobs:
           set -euo pipefail
           cat > "$RUNNER_TEMP/release-body.md" <<'BODY'
           Changes:
-          - Settings remain scrollable when the application window is small.
-          - Bilibili URLs copied before startup or while the app is open are detected, filled into the download input, and parsed automatically.
+          - Rejects Bilibili WBI voucher and empty DASH responses instead of creating unusable download tasks.
+          - Retries alternate DASH CDN URLs when a media request is temporarily rejected.
+          - Makes the tray update action open the settings page and start a visible update check.
+          - Prevents FFmpeg from opening a console window during audio processing or video muxing on Windows.
+          - Displays the packaged application version instead of a hard-coded version label.
+          - Keeps the task list scrollbar visible when its content exceeds the application height.
 
           Downloads:
           - Windows x64: `BiliCatch_<version>_Windows_x64-setup.exe`
