@@ -61,8 +61,8 @@ jobs:
           set -euo pipefail
           cat > "$RUNNER_TEMP/release-body.md" <<'BODY'
           Changes:
-          - Sends a native system notification when a download completes.
-          - Adds a setting to enable or disable the completion sound while keeping completion notifications enabled.
+          - Fixes downloads for videos whose Bilibili media response includes third-party backup CDN URLs.
+          - Keeps downloads restricted to trusted Bilibili CDN URLs by discarding untrusted backups instead of rejecting a valid primary source.
 
           Downloads:
           - Windows x64: `BiliCatch_<version>_Windows_x64-setup.exe`
