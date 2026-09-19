@@ -80,6 +80,47 @@ fn authenticated_selection_uses_the_best_standard_source() {
 }
 
 #[test]
+fn audio_selection_ignores_untrusted_backup_cdn_urls() {
+    let mut source = candidate(
+        30280,
+        192,
+        AudioSourceTier::Lossy,
+        "upos-sz-mirrorcos.bilivideo.cn",
+    );
+    source.media.backup_urls = vec![
+        "https://dvh0921e.edge.mountaintoys.cn/audio/30280.m4s".into(),
+        "https://upos-sz-mirrorcoso1.bilivideo.com/audio/30280.m4s".into(),
+    ];
+
+    let selected = select_audio_source(&[source], AudioOutputProfile::M4aOriginal, false)
+        .expect("a trusted primary source must survive unrelated backup CDN entries");
+
+    assert_eq!(
+        selected.media.backup_urls,
+        vec!["https://upos-sz-mirrorcoso1.bilivideo.com/audio/30280.m4s"]
+    );
+}
+
+#[test]
+fn audio_selection_rejects_an_untrusted_primary_even_with_a_trusted_backup() {
+    let mut source = candidate(
+        30280,
+        192,
+        AudioSourceTier::Lossy,
+        "dvh0921e.edge.mountaintoys.cn",
+    );
+    source.media.backup_urls =
+        vec!["https://upos-sz-mirrorcoso1.bilivideo.com/audio/30280.m4s".into()];
+
+    let error = match select_audio_source(&[source], AudioOutputProfile::M4aOriginal, false) {
+        Ok(_) => panic!("an untrusted primary source must remain unavailable"),
+        Err(error) => error,
+    };
+
+    assert_eq!(error.code, AppErrorCode::E004);
+}
+
+#[test]
 fn lossless_selection_enforces_auth_and_availability() {
     let lossless = candidate(
         30251,

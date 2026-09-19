@@ -49,16 +49,18 @@ fn source_unavailable() -> AppError {
     )
 }
 
-fn validate_candidate(candidate: &AudioSourceCandidate) -> Result<(), AppError> {
+fn validate_candidate(candidate: &AudioSourceCandidate) -> Result<AudioSourceCandidate, AppError> {
     if candidate.media.kind != MediaKind::Audio {
         return Err(source_unavailable());
     }
     validate_media_source_kind(&candidate.media)?;
     validate_media_url(&candidate.media.primary_url)?;
-    for backup_url in &candidate.media.backup_urls {
-        validate_media_url(backup_url)?;
-    }
-    Ok(())
+    let mut validated = candidate.clone();
+    validated
+        .media
+        .backup_urls
+        .retain(|backup_url| validate_media_url(backup_url).is_ok());
+    Ok(validated)
 }
 
 pub fn select_audio_source(
@@ -96,6 +98,5 @@ pub fn select_audio_source(
             .ok_or_else(source_unavailable)?,
     };
 
-    validate_candidate(selected)?;
-    Ok(selected.clone())
+    validate_candidate(selected)
 }
