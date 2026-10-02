@@ -59,15 +59,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/release-body.md" <<'BODY'
+          version="${GITHUB_REF_NAME#v}"
+          release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          cat > "$RUNNER_TEMP/release-body.md" <<BODY
           Changes:
-          - Fixes downloads for videos whose Bilibili media response includes third-party backup CDN URLs.
-          - Keeps downloads restricted to trusted Bilibili CDN URLs by discarding untrusted backups instead of rejecting a valid primary source.
+          - Fixes video and audio download tasks being incorrectly marked as cancelled when the second media track expands the known total size.
+          - Adds automatic update checks at startup with a version confirmation dialog and explicit Later or Update now actions.
+          - Keeps concurrent update checks bound to the confirmed release and improves update-install retry and focus handling.
 
           Downloads:
-          - Windows x64: `BiliCatch_<version>_Windows_x64-setup.exe`
-          - macOS Intel: `BiliCatch_<version>_macOS_Intel.dmg` (macOS 11 or later)
-          - macOS Apple Silicon: `BiliCatch_<version>_macOS_AppleSilicon.dmg` (macOS 11 or later)
+          - Windows x64: [\`BiliCatch_${version}_Windows_x64-setup.exe\`]($release_base/BiliCatch_${version}_Windows_x64-setup.exe)
+          - macOS Intel: [\`BiliCatch_${version}_macOS_Intel.dmg\`]($release_base/BiliCatch_${version}_macOS_Intel.dmg) (macOS 11 or later)
+          - macOS Apple Silicon: [\`BiliCatch_${version}_macOS_AppleSilicon.dmg\`]($release_base/BiliCatch_${version}_macOS_AppleSilicon.dmg) (macOS 11 or later)
 
           The Windows installer is not Authenticode-signed. The macOS disk images are not Apple Developer signed or notarized. Only bypass an operating-system warning after verifying that the file came from this repository.
 
