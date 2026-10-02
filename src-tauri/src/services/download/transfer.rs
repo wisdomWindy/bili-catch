@@ -120,9 +120,10 @@ pub fn download_percent(downloaded: u64, total: Option<u64>, current: u8) -> u8 
     let Some(total) = total.filter(|total| *total > 0) else {
         return current.min(90);
     };
-    downloaded
+    (downloaded
         .saturating_mul(90)
         .checked_div(total)
         .unwrap_or(0)
-        .min(90) as u8
+        .min(90) as u8)
+        .max(current.min(90))
 }

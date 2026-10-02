@@ -1,0 +1,36 @@
+{
+  "request_id": "bilicatch-video-progress-auto-cancel-20261002",
+  "source": {
+    "type": "direct_user_defect_report",
+    "date": "2026-10-02",
+    "reproduction_bvid": "BV1P2HQzbE61"
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/request.md",
+    "bugfix_source": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/artifacts/bugfix-source.md",
+    "prd_snapshot": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/artifacts/prd-snapshot.md",
+    "code_context": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/artifacts/code-context.md",
+    "spec": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/verification/verification.md",
+    "review": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/review/review.md",
+    "release_readiness": "docs/requests/bilicatch-video-progress-auto-cancel-20261002/release/release-readiness.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 6,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "stage_completed"
+  }
+}

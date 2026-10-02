@@ -111,3 +111,95 @@ fn empty_progress() -> DownloadProgress {
         eta_seconds: None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        models::AppError,
+        services::{download::DownloadControlState, tasks::ExecutionUpdate},
+    };
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct ReportedProgress {
+        percent: u8,
+        bytes_downloaded: String,
+        total_bytes: Option<String>,
+    }
+
+    #[derive(Default)]
+    struct MonotonicReporter {
+        accepted: Mutex<Vec<ReportedProgress>>,
+    }
+
+    impl ExecutionReporterPort for MonotonicReporter {
+        fn report(
+            &self,
+            _task_id: &str,
+            _attempt_id: &str,
+            update: ExecutionUpdate,
+        ) -> Result<bool, AppError> {
+            let ExecutionUpdate::Progress {
+                percent,
+                bytes_downloaded,
+                total_bytes,
+                ..
+            } = update
+            else {
+                return Ok(true);
+            };
+            let mut accepted = self.accepted.lock().unwrap();
+            if accepted
+                .last()
+                .is_some_and(|current| percent < current.percent)
+            {
+                return Ok(false);
+            }
+            accepted.push(ReportedProgress {
+                percent,
+                bytes_downloaded,
+                total_bytes,
+            });
+            Ok(true)
+        }
+    }
+
+    #[test]
+    fn adding_audio_total_does_not_cancel_a_valid_video_attempt() {
+        let reporter = Arc::new(MonotonicReporter::default());
+        let control = DownloadControl::new();
+        let state = Arc::new(VideoProgressState::new(
+            "task-1".into(),
+            "attempt-1".into(),
+            reporter.clone(),
+            control.clone(),
+            0,
+        ));
+
+        state.sink(VideoTrack::Video).report(DownloadProgress {
+            downloaded_bytes: 1_014_439,
+            total_bytes: Some(1_514_175),
+            speed_bytes_per_second: 500_000,
+            eta_seconds: Some(1),
+        });
+        state.sink(VideoTrack::Audio).report(DownloadProgress {
+            downloaded_bytes: 16_384,
+            total_bytes: Some(1_610_204),
+            speed_bytes_per_second: 100_000,
+            eta_seconds: Some(15),
+        });
+
+        assert_eq!(control.state(), DownloadControlState::Running);
+        let accepted = reporter.accepted.lock().unwrap();
+        assert_eq!(accepted.len(), 2);
+        assert_eq!(accepted[0].percent, 60);
+        assert_eq!(
+            accepted[1],
+            ReportedProgress {
+                percent: 60,
+                bytes_downloaded: "1030823".to_owned(),
+                total_bytes: Some("3124379".to_owned()),
+            }
+        );
+    }
+}

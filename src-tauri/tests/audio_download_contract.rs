@@ -10,6 +10,11 @@ fn download_progress_uses_only_zero_to_ninety_percent() {
 }
 
 #[test]
+fn download_progress_does_not_regress_when_the_known_total_expands() {
+    assert_eq!(download_percent(1_014_439, Some(3_124_379), 60), 60);
+}
+
+#[test]
 fn download_control_is_cloneable_and_cancel_wins_over_pause() {
     let control = DownloadControl::new();
     let observer = control.clone();
