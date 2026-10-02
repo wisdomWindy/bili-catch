@@ -114,6 +114,16 @@ export const enUS = {
       checking: "Checking", installing: "Installing", latest: "You are up to date", available: "Version {version} is available", installUpdate: "Install update",
       updateFailed: "Could not check for updates", installFailed: "Could not install update", openLicenses: "Open-source licenses", licenseFailed: "Could not open open-source licenses",
     },
+    updateDialog: {
+      title: "Update available",
+      message: "BiliCatch will restart automatically after the update is installed.",
+      currentVersion: "Current version",
+      latestVersion: "New version",
+      later: "Later",
+      install: "Update now",
+      installing: "Installing",
+      installFailed: "Could not install the update. Try again.",
+    },
     options: {
       quality: { p360: "360P", p480: "480P", p720: "720P", p1080: "1080P", p1080Plus: "1080P+", p4k: "4K", hdr: "HDR", p8k: "8K" },
       audio: { mp3: "MP3", m4a: "M4A", flac: "FLAC" },

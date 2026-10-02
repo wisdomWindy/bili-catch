@@ -114,6 +114,16 @@ export const zhCN = {
       checking: "检查中", installing: "正在安装", latest: "已是最新版本", available: "发现新版本 {version}", installUpdate: "安装更新",
       updateFailed: "暂时无法检查更新", installFailed: "更新安装失败", openLicenses: "开源许可", licenseFailed: "暂时无法打开开源许可",
     },
+    updateDialog: {
+      title: "发现新版本",
+      message: "更新安装完成后，BiliCatch 将自动重启。",
+      currentVersion: "当前版本",
+      latestVersion: "新版本",
+      later: "稍后",
+      install: "立即更新",
+      installing: "正在安装",
+      installFailed: "更新安装失败，请重试。",
+    },
     options: {
       quality: { p360: "360P", p480: "480P", p720: "720P", p1080: "1080P", p1080Plus: "1080P+", p4k: "4K", hdr: "HDR", p8k: "8K" },
       audio: { mp3: "MP3", m4a: "M4A", flac: "FLAC" },

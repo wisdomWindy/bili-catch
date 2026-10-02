@@ -37,11 +37,23 @@ export function createDeferredReleaseActions(): ReleaseActionsPort {
 
 export function createTauriReleaseActions(): ReleaseActionsPort {
   let pendingUpdate: Update | null = null;
+  let checkInFlight: Promise<Update | null> | null = null;
+
+  async function resolvePendingUpdate(): Promise<Update | null> {
+    if (pendingUpdate) return pendingUpdate;
+    checkInFlight ??= check();
+    try {
+      const update = await checkInFlight;
+      pendingUpdate ??= update;
+      return pendingUpdate;
+    } finally {
+      checkInFlight = null;
+    }
+  }
 
   return {
     async checkForUpdates() {
-      const update = await check();
-      pendingUpdate = update;
+      const update = await resolvePendingUpdate();
       if (!update) {
         return { status: "latest", currentVersion: await getVersion() };
       }
@@ -52,9 +64,8 @@ export function createTauriReleaseActions(): ReleaseActionsPort {
       };
     },
     async installUpdate() {
-      const update = pendingUpdate ?? await check();
+      const update = await resolvePendingUpdate();
       if (!update) return;
-      pendingUpdate = update;
       await update.downloadAndInstall();
       pendingUpdate = null;
       await relaunch();

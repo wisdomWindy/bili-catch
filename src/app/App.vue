@@ -14,6 +14,7 @@ import { useAuthEventSource, useAuthService } from "../features/authentication/i
 import { useAuthStore } from "../features/authentication/store";
 import { useSettingsEffectSink, useSettingsService } from "../features/settings/injection";
 import { useSettingsStore } from "../features/settings/store";
+import StartupUpdateBridge from "../features/settings/components/StartupUpdateBridge.vue";
 
 const props = defineProps<{ appService: AppIpcService }>();
 const store = useAppStore();
@@ -61,6 +62,7 @@ onBeforeUnmount(() => {
   <NConfigProvider class="app-provider" :theme="naiveTheme">
     <NDialogProvider>
       <NMessageProvider>
+        <StartupUpdateBridge />
         <DownloadNotificationBridge>
           <NNotificationProvider :max="3">
             <AppShell>
