@@ -1,10 +1,12 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDeferredReleaseActions, createTauriReleaseActions } from "./release";
 
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn() }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn() }));
 vi.mock("@tauri-apps/plugin-process", () => ({ relaunch: vi.fn() }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn() }));
 
@@ -34,6 +36,7 @@ function deferred<T>() {
 beforeEach(() => {
   vi.mocked(check).mockReset();
   vi.mocked(getVersion).mockReset();
+  vi.mocked(openUrl).mockReset();
   vi.mocked(relaunch).mockReset();
 });
 
@@ -53,6 +56,16 @@ describe("deferred release actions", () => {
 });
 
 describe("Tauri release actions", () => {
+  it("opens the configured open-source license page", async () => {
+    const actions = createTauriReleaseActions();
+
+    await actions.openLicenses();
+
+    expect(openUrl).toHaveBeenCalledWith(
+      "https://github.com/wisdomWindy/bili-catch/blob/main/LICENSE",
+    );
+  });
+
   it("keeps the checked update bound across repeated consumers until installation", async () => {
     const confirmed = updateFixture("0.2.0");
     const later = updateFixture("0.3.0");

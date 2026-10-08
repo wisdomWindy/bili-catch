@@ -1,5 +1,6 @@
 import type { AppError } from "../../contracts/app-error";
 import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 
@@ -71,7 +72,7 @@ export function createTauriReleaseActions(): ReleaseActionsPort {
       await relaunch();
     },
     async openLicenses() {
-      throw deferredError("LICENSES_NOT_CONFIGURED");
+      await openUrl("https://github.com/wisdomWindy/bili-catch/blob/main/LICENSE");
     },
   };
 }
