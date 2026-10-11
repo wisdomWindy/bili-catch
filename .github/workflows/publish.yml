@@ -1,12 +1,27 @@
 name: Publish BiliCatch
 
+run-name: Publish BiliCatch ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag to build and publish
+        required: true
+        type: string
 
 permissions:
   contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+concurrency:
+  group: publish-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   prepare-release:
@@ -17,6 +32,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Verify tag and package versions
         shell: bash
@@ -24,7 +41,7 @@ jobs:
           node <<'NODE'
           const fs = require("node:fs");
 
-          const expected = process.env.GITHUB_REF_NAME.replace(/^v/, "");
+          const expected = process.env.RELEASE_TAG.replace(/^v/, "");
           const versions = {
             "package.json": JSON.parse(fs.readFileSync("package.json", "utf8")).version,
             "package-lock.json": JSON.parse(fs.readFileSync("package-lock.json", "utf8")).packages[""].version,
@@ -59,11 +76,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           cat > "$RUNNER_TEMP/release-body.md" <<BODY
           Changes:
-          - Fixes the Open-source licenses button so it opens the project's license page in the system browser.
+          - Adds local audio and video transcription powered by whisper.cpp.
+          - Adds transcription model management, editable results, and TXT/SRT export.
+          - Improves task-list navigation and Simplified Chinese transcription output.
 
           Downloads:
           - Windows x64: [\`BiliCatch_${version}_Windows_x64-setup.exe\`]($release_base/BiliCatch_${version}_Windows_x64-setup.exe)
@@ -76,39 +99,48 @@ jobs:
           BODY
 
           release_id="$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-            --jq ".[] | select(.tag_name == \"$GITHUB_REF_NAME\") | .id")"
+            --jq ".[] | select(.tag_name == \"$RELEASE_TAG\") | .id")"
           if [[ -n "$release_id" ]]; then
             is_draft="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id" --jq .draft)"
-            if [[ "$is_draft" != "true" ]]; then
-              echo "Release $GITHUB_REF_NAME is already public." >&2
+            if [[ "$is_draft" != "true" && "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]]; then
+              echo "Release $RELEASE_TAG is already public." >&2
               exit 1
             fi
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
-              --raw-field name="BiliCatch $GITHUB_REF_NAME" \
+              --raw-field name="BiliCatch $RELEASE_TAG" \
               --raw-field body="$(<"$RUNNER_TEMP/release-body.md")" \
               --field draft=true \
               --field prerelease=false \
               --silent
           else
             release_id="$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
-              --raw-field tag_name="$GITHUB_REF_NAME" \
-              --raw-field target_commitish="$GITHUB_SHA" \
-              --raw-field name="BiliCatch $GITHUB_REF_NAME" \
+              --raw-field tag_name="$RELEASE_TAG" \
+              --raw-field target_commitish="$RELEASE_TAG" \
+              --raw-field name="BiliCatch $RELEASE_TAG" \
               --raw-field body="$(<"$RUNNER_TEMP/release-body.md")" \
               --field draft=true \
               --field prerelease=false \
               --jq .id)"
           fi
 
-          for asset_name in ffmpeg-9.0.1.tar.xz lame-3.100.tar.gz; do
-            asset_ids="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-              --jq ".[] | select(.name == \"$asset_name\") | .id")"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            asset_ids="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" --jq '.[].id')"
             while IFS= read -r asset_id; do
               if [[ -n "$asset_id" ]]; then
                 gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --silent
               fi
             done <<< "$asset_ids"
-          done
+          else
+            for asset_name in ffmpeg-9.0.1.tar.xz lame-3.100.tar.gz; do
+              asset_ids="$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+                --jq ".[] | select(.name == \"$asset_name\") | .id")"
+              while IFS= read -r asset_id; do
+                if [[ -n "$asset_id" ]]; then
+                  gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id" --silent
+                fi
+              done <<< "$asset_ids"
+            done
+          fi
 
           echo "release_id=$release_id" >> "$GITHUB_OUTPUT"
 
@@ -148,6 +180,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ env.RELEASE_TAG }}
           lfs: ${{ matrix.platform == 'windows' }}
 
       - name: Verify Windows FFmpeg sidecar
@@ -265,6 +298,64 @@ jobs:
           test -s "$smoke_dir/muxed.mp4"
           test -s "$smoke_dir/output.mp3"
 
+      - name: Build macOS whisper.cpp sidecar
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          WHISPER_TAG: v1.8.6
+          WHISPER_COMMIT: 23ee03506a91ac3d3f0071b40e66a430eebdfa1d
+        run: |
+          set -euo pipefail
+
+          build_root="$(mktemp -d "$RUNNER_TEMP/bilicatch-whisper.XXXXXX")"
+          source_dir="$build_root/whisper.cpp"
+          git init "$source_dir"
+          git -C "$source_dir" remote add origin https://github.com/ggml-org/whisper.cpp.git
+          git -C "$source_dir" fetch --depth 1 origin "refs/tags/$WHISPER_TAG"
+          git -C "$source_dir" checkout --detach FETCH_HEAD
+          test "$(git -C "$source_dir" rev-parse HEAD)" = "$WHISPER_COMMIT"
+
+          case "$TARGET" in
+            aarch64-apple-darwin) expected_arch="arm64" ;;
+            x86_64-apple-darwin) expected_arch="x86_64" ;;
+            *) echo "Unsupported macOS target: $TARGET" >&2; exit 1 ;;
+          esac
+
+          cmake -S "$source_dir" -B "$build_root/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES="$expected_arch" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DGGML_STATIC=ON \
+            -DGGML_NATIVE=OFF \
+            -DGGML_OPENMP=OFF \
+            -DGGML_METAL=ON \
+            -DGGML_METAL_EMBED_LIBRARY=ON \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=ON \
+            -DWHISPER_BUILD_SERVER=OFF \
+            -DWHISPER_CURL=OFF
+          cmake --build "$build_root/build" --config Release --target whisper-cli \
+            -j"$(sysctl -n hw.logicalcpu)"
+
+          sidecar="$GITHUB_WORKSPACE/src-tauri/binaries/whisper-cli-$TARGET"
+          install -m 755 "$build_root/build/bin/whisper-cli" "$sidecar"
+          actual_archs="$(lipo -archs "$sidecar")"
+          if [[ "$actual_archs" != "$expected_arch" ]]; then
+            echo "whisper-cli architecture mismatch: expected $expected_arch, got $actual_archs" >&2
+            exit 1
+          fi
+          vtool -show-build "$sidecar" | grep -Eq 'minos[[:space:]]+11\.0'
+
+          unexpected_dependencies="$(otool -L "$sidecar" | awk 'NR > 1 { print $1 }' | grep -Ev '^(/usr/lib/|/System/Library/)' || true)"
+          if [[ -n "$unexpected_dependencies" ]]; then
+            echo "whisper-cli has non-system dynamic dependencies:" >&2
+            echo "$unexpected_dependencies" >&2
+            exit 1
+          fi
+          "$sidecar" --help >/dev/null
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -296,7 +387,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.prepare-release.outputs.release_id }}
-          tagName: ${{ github.ref_name }}
+          tagName: ${{ env.RELEASE_TAG }}
           releaseDraft: true
           prerelease: false
           releaseAssetNamePattern: BiliCatch_[version]_${{ matrix.asset_platform }}[setup][ext]
@@ -325,8 +416,13 @@ jobs:
 
           app_path="$(find "$mount_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
           bundled_sidecar="$app_path/Contents/MacOS/ffmpeg"
+          bundled_whisper="$app_path/Contents/MacOS/whisper-cli"
           if [[ -z "$app_path" || ! -x "$bundled_sidecar" ]]; then
             echo "The packaged FFmpeg sidecar is missing or not executable." >&2
+            exit 1
+          fi
+          if [[ ! -x "$bundled_whisper" ]]; then
+            echo "The packaged whisper-cli sidecar is missing or not executable." >&2
             exit 1
           fi
 
@@ -340,7 +436,14 @@ jobs:
             echo "Packaged FFmpeg architecture mismatch: expected $expected_arch, got $actual_archs" >&2
             exit 1
           fi
+          whisper_archs="$(lipo -archs "$bundled_whisper")"
+          if [[ "$whisper_archs" != "$expected_arch" ]]; then
+            echo "Packaged whisper-cli architecture mismatch: expected $expected_arch, got $whisper_archs" >&2
+            exit 1
+          fi
           vtool -show-build "$bundled_sidecar" | grep -Eq 'minos[[:space:]]+11\.0'
+          vtool -show-build "$bundled_whisper" | grep -Eq 'minos[[:space:]]+11\.0'
+          "$bundled_whisper" --help >/dev/null
 
           smoke_dir="$(mktemp -d "$RUNNER_TEMP/bilicatch-packaged-smoke.XXXXXX")"
           "$bundled_sidecar" -hide_banner -loglevel error -f lavfi -i "testsrc=size=64x64:rate=10:duration=0.3" \
@@ -367,6 +470,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Normalize and validate release assets and updater manifest
         shell: bash
@@ -375,7 +480,7 @@ jobs:
           RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
+          version="${RELEASE_TAG#v}"
           assets_file="$RUNNER_TEMP/release-assets.json"
           gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" > "$assets_file"
           asset_names="$(jq -r '.[].name' "$assets_file")"
@@ -413,7 +518,7 @@ jobs:
           export WINDOWS_UPDATE_URL
           export DARWIN_X64_UPDATE_URL
           export DARWIN_ARM64_UPDATE_URL
-          release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME"
+          release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           WINDOWS_UPDATE_URL="$release_base/BiliCatch_${version}_Windows_x64-setup.exe"
           DARWIN_X64_UPDATE_URL="$release_base/BiliCatch_${version}_macOS_Intel.app.tar.gz"
           DARWIN_ARM64_UPDATE_URL="$release_base/BiliCatch_${version}_macOS_AppleSilicon.app.tar.gz"
@@ -444,10 +549,10 @@ jobs:
             $manifest.platforms["darwin-aarch64"].url == env.DARWIN_ARM64_UPDATE_URL
           ' "$check_dir/latest.json"
 
-          gh release upload "$GITHUB_REF_NAME" "$check_dir/latest.json" --clobber
+          gh release upload "$RELEASE_TAG" "$check_dir/latest.json" --clobber
           verify_dir="$RUNNER_TEMP/release-verify"
           mkdir -p "$verify_dir"
-          gh release download "$GITHUB_REF_NAME" --pattern latest.json --dir "$verify_dir"
+          gh release download "$RELEASE_TAG" --pattern latest.json --dir "$verify_dir"
           cmp "$check_dir/latest.json" "$verify_dir/latest.json"
 
       - name: Publish validated release
@@ -460,4 +565,4 @@ jobs:
             --field draft=false \
             --field prerelease=false \
             --silent
-          echo "Published https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
