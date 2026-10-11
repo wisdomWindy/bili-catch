@@ -106,13 +106,19 @@ jobs:
               echo "Release $RELEASE_TAG is already public." >&2
               exit 1
             fi
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
-              --raw-field name="BiliCatch $RELEASE_TAG" \
-              --raw-field body="$(<"$RUNNER_TEMP/release-body.md")" \
-              --field draft=true \
-              --field prerelease=false \
-              --silent
-          else
+            if [[ "$is_draft" == "true" ]]; then
+              gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$release_id" \
+                --raw-field name="BiliCatch $RELEASE_TAG" \
+                --raw-field body="$(<"$RUNNER_TEMP/release-body.md")" \
+                --field draft=true \
+                --field prerelease=false \
+                --silent
+            else
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/$release_id" --silent
+              release_id=""
+            fi
+          fi
+          if [[ -z "$release_id" ]]; then
             release_id="$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
               --raw-field tag_name="$RELEASE_TAG" \
               --raw-field target_commitish="$RELEASE_TAG" \
@@ -562,6 +568,8 @@ jobs:
           RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
         run: |
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            --raw-field tag_name="$RELEASE_TAG" \
+            --raw-field target_commitish="$RELEASE_TAG" \
             --field draft=false \
             --field prerelease=false \
             --silent

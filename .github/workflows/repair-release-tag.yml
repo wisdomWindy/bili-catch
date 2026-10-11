@@ -1,0 +1,45 @@
+name: Repair draft release tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: Draft release database ID
+        required: true
+        type: string
+      tag:
+        description: Existing version tag
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reattach draft release to tag
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ inputs.release_id }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_ID" =~ ^[0-9]+$ ]]; then
+            echo "Invalid release ID: $RELEASE_ID" >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            --raw-field tag_name="$RELEASE_TAG" \
+            --raw-field target_commitish="$RELEASE_TAG" \
+            --field draft=true \
+            --field prerelease=false \
+            --silent
+          actual_tag="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq .tag_name)"
+          test "$actual_tag" = "$RELEASE_TAG"
