@@ -11,7 +11,7 @@ export interface DemoSettingsRuntime {
 }
 
 const initialSnapshot: SettingsSnapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   revision: 0,
   values: {
     downloadDirectory: "D:/BiliCatch Demo",
@@ -26,6 +26,17 @@ const initialSnapshot: SettingsSnapshot = {
     completionSound: true,
     closeBehavior: "minimizeToTray",
     autoCheckUpdates: true,
+    defaultAsrModel: "base",
+    defaultTranscriptionLanguage: "zh",
+    defaultTranscriptFormat: "srt",
+    transcriptionTimestamps: true,
+    transcriptionPunctuation: true,
+    preferPlatformSubtitles: true,
+    autoTranscribeDownloads: false,
+    maxConcurrentTranscriptions: 1,
+    asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+    asrGpuMode: "auto",
+    asrModelSource: "",
   },
 };
 

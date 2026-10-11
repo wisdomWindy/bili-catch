@@ -16,6 +16,7 @@ const props = defineProps<{
   codec: VideoCodec | null;
   audioFormat: AudioFormat | null;
   audioBitrateId: string | null;
+  autoTranscribe: boolean;
 }>();
 
 const formatOrder: readonly AudioFormat[] = ["mp3", "m4a", "flac"];
@@ -40,10 +41,15 @@ const emit = defineEmits<{
   codec: [value: VideoCodec | null];
   audioFormat: [value: AudioFormat | null];
   audioBitrate: [value: string | null];
+  autoTranscribe: [value: boolean];
 }>();
 
 function selected(event: Event): string | null {
   return (event.target as HTMLSelectElement).value || null;
+}
+
+function checked(event: Event): boolean {
+  return (event.target as HTMLInputElement).checked;
 }
 </script>
 
@@ -94,5 +100,9 @@ function selected(event: Event): string | null {
         </select>
       </label>
     </div>
+    <label v-if="mode !== 'video-only'" class="download-transcription-option">
+      <input class="switch-control" type="checkbox" role="switch" :checked="autoTranscribe" @change="emit('autoTranscribe', checked($event))" />
+      <span><strong>{{ $t("download.autoTranscribe") }}</strong><small>{{ $t("download.autoTranscribeHint") }}</small></span>
+    </label>
   </section>
 </template>

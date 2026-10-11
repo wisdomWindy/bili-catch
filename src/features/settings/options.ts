@@ -1,6 +1,15 @@
 import { AUDIO_FORMATS, VIDEO_QUALITY_IDS, type AudioFormat, type VideoQualityId } from "../../contracts/media";
 import type { AppLocale, ThemePreference } from "../../contracts/app";
 import type { CloseBehavior } from "./contracts";
+import {
+  ASR_MODEL_IDS,
+  TRANSCRIPT_FORMATS,
+  TRANSCRIPTION_LANGUAGES,
+  type AsrModelId,
+  type GpuMode,
+  type TranscriptFormat,
+  type TranscriptionLanguage,
+} from "../transcription/contracts";
 
 export interface SettingOption<Value extends string> {
   value: Value;
@@ -33,4 +42,25 @@ export const LOCALE_OPTIONS: readonly SettingOption<AppLocale>[] = [
 export const CLOSE_BEHAVIOR_OPTIONS: readonly SettingOption<CloseBehavior>[] = [
   { value: "minimizeToTray", labelKey: "settings.options.close.minimizeToTray" },
   { value: "exit", labelKey: "settings.options.close.exit" },
+];
+
+export const ASR_MODEL_OPTIONS: readonly SettingOption<AsrModelId>[] = ASR_MODEL_IDS.map((value) => ({
+  value,
+  labelKey: `settings.options.asrModel.${value.replace("-", "")}`,
+}));
+
+export const TRANSCRIPTION_LANGUAGE_OPTIONS: readonly SettingOption<TranscriptionLanguage>[] = TRANSCRIPTION_LANGUAGES.map((value) => ({
+  value,
+  labelKey: `settings.options.transcriptionLanguage.${value.replace("-", "")}`,
+}));
+
+export const TRANSCRIPT_FORMAT_OPTIONS: readonly SettingOption<TranscriptFormat>[] = TRANSCRIPT_FORMATS.map((value) => ({
+  value,
+  labelKey: `settings.options.transcriptFormat.${value}`,
+}));
+
+export const GPU_MODE_OPTIONS: readonly SettingOption<GpuMode>[] = [
+  { value: "auto", labelKey: "settings.options.gpuMode.auto" },
+  { value: "enabled", labelKey: "settings.options.gpuMode.enabled" },
+  { value: "disabled", labelKey: "settings.options.gpuMode.disabled" },
 ];

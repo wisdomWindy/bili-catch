@@ -18,6 +18,17 @@ const values: SettingsValues = {
   completionSound: true,
   closeBehavior: "minimizeToTray",
   autoCheckUpdates: true,
+  defaultAsrModel: "base",
+  defaultTranscriptionLanguage: "auto",
+  defaultTranscriptFormat: "srt",
+  transcriptionTimestamps: true,
+  transcriptionPunctuation: true,
+  preferPlatformSubtitles: true,
+  autoTranscribeDownloads: false,
+  maxConcurrentTranscriptions: 1,
+  asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+  asrGpuMode: "auto",
+  asrModelSource: "",
 };
 
 describe("settings effect sink", () => {
@@ -38,6 +49,8 @@ describe("settings effect sink", () => {
     expect(download.defaults).toMatchObject({
       defaultVideoQuality: "64",
       defaultAudioFormat: "flac",
+      autoTranscribeDownloads: false,
+      defaultAsrModel: "base",
     });
   });
 });

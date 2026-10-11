@@ -41,6 +41,8 @@ export interface DownloadTask {
   codec: VideoCodec | null;
   audioFormat: AudioFormat | null;
   audioBitrateId: string | null;
+  autoTranscribe: boolean;
+  transcriptionPreset: DownloadTaskDraft["transcriptionPreset"];
   status: TaskStatus;
   controlRequest: TaskControlRequest;
   progressPercent: number;

@@ -10,6 +10,7 @@ mod parser;
 pub mod settings;
 pub mod system;
 pub mod tasks;
+pub mod transcription;
 pub mod video;
 pub(crate) use parser::ParserService;
 

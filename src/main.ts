@@ -32,6 +32,10 @@ import {
   settingsServiceKey,
 } from "./features/settings/injection";
 import { createSettingsEffectSink } from "./app/settings-effects";
+import { createTranscriptionService } from "./features/transcription/service";
+import { createTranscriptionEventSource } from "./features/transcription/events";
+import { transcriptionEventSourceKey, transcriptionServiceKey } from "./features/transcription/injection";
+import { createDemoTranscriptionRuntime } from "./features/transcription/demo";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/layout.css";
@@ -40,6 +44,7 @@ import "./features/download-center/download-center.css";
 import "./features/task-management/task-management.css";
 import "./features/authentication/authentication.css";
 import "./features/settings/settings.css";
+import "./features/transcription/transcription.css";
 
 const router = createAppRouter();
 const pinia = createPinia();
@@ -80,6 +85,12 @@ const settingsEffects = createSettingsEffectSink(
   useAppStore(pinia),
   useDownloadCenterStore(pinia),
 );
+const transcriptionRuntime = demoMode
+  ? createDemoTranscriptionRuntime()
+  : {
+      service: createTranscriptionService(transport),
+      events: createTranscriptionEventSource(),
+    };
 if (demoMode) {
   if (window.location.hash.includes("theme=light")) useAppStore(pinia).setTheme("light");
   if (window.location.hash.includes("theme=dark")) useAppStore(pinia).setTheme("dark");
@@ -97,6 +108,8 @@ createApp(App, { appService })
   .provide(directoryPickerKey, settingsRuntime.directoryPicker)
   .provide(releaseActionsKey, settingsRuntime.releaseActions)
   .provide(settingsEffectSinkKey, settingsEffects)
+  .provide(transcriptionServiceKey, transcriptionRuntime.service)
+  .provide(transcriptionEventSourceKey, transcriptionRuntime.events)
   .use(pinia)
   .use(router)
   .use(i18n)

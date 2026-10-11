@@ -1,6 +1,12 @@
 import type { AppLocale, ThemePreference } from "../../contracts/app";
 import type { AudioFormat, VideoQualityId } from "../../contracts/media";
 import type { AppError } from "../../contracts/app-error";
+import type {
+  AsrModelId,
+  GpuMode,
+  TranscriptFormat,
+  TranscriptionLanguage,
+} from "../transcription/contracts";
 
 export type CloseBehavior = "minimizeToTray" | "exit";
 
@@ -17,10 +23,21 @@ export interface SettingsValues {
   completionSound: boolean;
   closeBehavior: CloseBehavior;
   autoCheckUpdates: boolean;
+  defaultAsrModel: AsrModelId;
+  defaultTranscriptionLanguage: TranscriptionLanguage;
+  defaultTranscriptFormat: TranscriptFormat;
+  transcriptionTimestamps: boolean;
+  transcriptionPunctuation: boolean;
+  preferPlatformSubtitles: boolean;
+  autoTranscribeDownloads: boolean;
+  maxConcurrentTranscriptions: number;
+  asrModelDirectory: string;
+  asrGpuMode: GpuMode;
+  asrModelSource: string;
 }
 
 export interface SettingsSnapshot {
-  schemaVersion: 1;
+  schemaVersion: 2;
   revision: number;
   values: SettingsValues;
 }
@@ -38,6 +55,17 @@ export const SETTING_KEYS = [
   "completionSound",
   "closeBehavior",
   "autoCheckUpdates",
+  "defaultAsrModel",
+  "defaultTranscriptionLanguage",
+  "defaultTranscriptFormat",
+  "transcriptionTimestamps",
+  "transcriptionPunctuation",
+  "preferPlatformSubtitles",
+  "autoTranscribeDownloads",
+  "maxConcurrentTranscriptions",
+  "asrModelDirectory",
+  "asrGpuMode",
+  "asrModelSource",
 ] as const satisfies readonly (keyof SettingsValues)[];
 
 export type SettingKey = (typeof SETTING_KEYS)[number];

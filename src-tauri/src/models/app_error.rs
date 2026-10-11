@@ -12,6 +12,13 @@ pub enum AppErrorCode {
     E008,
     E009,
     E010,
+    E011,
+    E012,
+    E013,
+    E014,
+    E015,
+    E016,
+    E017,
     #[serde(rename = "E_INTERNAL")]
     Internal,
 }
@@ -64,6 +71,24 @@ mod tests {
         assert_eq!(
             value,
             json!({ "code": "E_INTERNAL", "message": "Unexpected error" })
+        );
+    }
+
+    #[test]
+    fn transcription_error_codes_keep_their_stable_wire_values() {
+        let values = [
+            AppErrorCode::E011,
+            AppErrorCode::E012,
+            AppErrorCode::E013,
+            AppErrorCode::E014,
+            AppErrorCode::E015,
+            AppErrorCode::E016,
+            AppErrorCode::E017,
+        ];
+
+        assert_eq!(
+            serde_json::to_value(values).expect("error codes should serialize"),
+            json!(["E011", "E012", "E013", "E014", "E015", "E016", "E017"])
         );
     }
 }

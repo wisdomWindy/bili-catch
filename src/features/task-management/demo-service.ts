@@ -9,6 +9,7 @@ const makeTask = (status: TaskStatus, index: number): DownloadTask => ({
   outputDir: "D:/Downloads/BiliCatch", outputPath: status === "completed" ? "D:/Downloads/BiliCatch/demo.mp4" : null,
   bvid: "BV1xx411c7BF", cid: 1000 + index, page: index + 1, partTitle: `P${index + 1}`,
   mode: "video-audio", qualityId: "80", codec: "avc", audioFormat: null, audioBitrateId: null,
+  autoTranscribe: false, transcriptionPreset: null,
   status, controlRequest: "none", progressPercent: [62, 0, 38, 100, 100, 24, 12][index] ?? 0,
   bytesDownloaded: ["650117120", "0", "398458880", "1048576000", "1572864000", "251658240", "125829120"][index] ?? "0",
   totalBytes: "1572864000", speedBytesPerSecond: status === "downloading" ? "8388608" : "0", etaSeconds: status === "downloading" ? 112 : null,

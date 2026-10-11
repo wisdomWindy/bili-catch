@@ -28,6 +28,17 @@ describe("settings contracts", () => {
       "completionSound",
       "closeBehavior",
       "autoCheckUpdates",
+      "defaultAsrModel",
+      "defaultTranscriptionLanguage",
+      "defaultTranscriptFormat",
+      "transcriptionTimestamps",
+      "transcriptionPunctuation",
+      "preferPlatformSubtitles",
+      "autoTranscribeDownloads",
+      "maxConcurrentTranscriptions",
+      "asrModelDirectory",
+      "asrGpuMode",
+      "asrModelSource",
     ]);
   });
 
@@ -43,7 +54,7 @@ describe("settings contracts", () => {
 
   it("preserves the backend field names in snapshots and typed patches", () => {
     const snapshot: SettingsSnapshot = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 4,
       values: {
         downloadDirectory: "D:/Media/BiliCatch",
@@ -58,6 +69,17 @@ describe("settings contracts", () => {
         completionSound: true,
         closeBehavior: "minimizeToTray",
         autoCheckUpdates: true,
+        defaultAsrModel: "base",
+        defaultTranscriptionLanguage: "auto",
+        defaultTranscriptFormat: "srt",
+        transcriptionTimestamps: true,
+        transcriptionPunctuation: true,
+        preferPlatformSubtitles: true,
+        autoTranscribeDownloads: false,
+        maxConcurrentTranscriptions: 1,
+        asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+        asrGpuMode: "auto",
+        asrModelSource: "",
       },
     };
     const patch: SettingsPatch = { field: "theme", value: "dark" };

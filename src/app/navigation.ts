@@ -1,5 +1,5 @@
 import type { Component } from "vue";
-import { Download, ListTodo, Settings } from "@lucide/vue";
+import { Download, FileAudio, ListTodo, Settings } from "@lucide/vue";
 import type { AppRouteName } from "../contracts/app";
 
 export interface NavigationItem {
@@ -10,5 +10,6 @@ export interface NavigationItem {
 export const primaryNavigation: readonly NavigationItem[] = [
   { name: "download", icon: Download },
   { name: "tasks", icon: ListTodo },
+  { name: "transcribe", icon: FileAudio },
   { name: "settings", icon: Settings },
 ];

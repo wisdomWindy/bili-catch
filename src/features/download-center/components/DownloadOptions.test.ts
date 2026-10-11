@@ -21,6 +21,7 @@ function render(authenticated: boolean, losslessAvailable: boolean) {
       codec: null,
       audioFormat: "mp3",
       audioBitrateId: "320",
+      autoTranscribe: true,
     },
     global: { plugins: [createAppI18n()] },
   });
@@ -46,6 +47,7 @@ function renderVideo(qualityId: string) {
       codec: qualityId === "80" ? "avc" : "hevc",
       audioFormat: null,
       audioBitrateId: null,
+      autoTranscribe: false,
     },
     global: { plugins: [createAppI18n()] },
   });

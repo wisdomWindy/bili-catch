@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::AudioFormat;
+use super::{AsrModelId, AudioFormat, GpuMode, TranscriptFormat, TranscriptionLanguage};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum VideoQualityId {
@@ -52,6 +52,17 @@ pub struct SettingsValues {
     pub completion_sound: bool,
     pub close_behavior: CloseBehavior,
     pub auto_check_updates: bool,
+    pub default_asr_model: AsrModelId,
+    pub default_transcription_language: TranscriptionLanguage,
+    pub default_transcript_format: TranscriptFormat,
+    pub transcription_timestamps: bool,
+    pub transcription_punctuation: bool,
+    pub prefer_platform_subtitles: bool,
+    pub auto_transcribe_downloads: bool,
+    pub max_concurrent_transcriptions: u8,
+    pub asr_model_directory: String,
+    pub asr_gpu_mode: GpuMode,
+    pub asr_model_source: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,6 +90,17 @@ pub enum SettingsPatch {
     CompletionSound(bool),
     CloseBehavior(CloseBehavior),
     AutoCheckUpdates(bool),
+    DefaultAsrModel(AsrModelId),
+    DefaultTranscriptionLanguage(TranscriptionLanguage),
+    DefaultTranscriptFormat(TranscriptFormat),
+    TranscriptionTimestamps(bool),
+    TranscriptionPunctuation(bool),
+    PreferPlatformSubtitles(bool),
+    AutoTranscribeDownloads(bool),
+    MaxConcurrentTranscriptions(u8),
+    AsrModelDirectory(String),
+    AsrGpuMode(GpuMode),
+    AsrModelSource(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,0 +1,58 @@
+{
+  "request_id": "bilicatch-asr-v1-1",
+  "source": {
+    "type": "local_prd",
+    "path": "biliCatch_PRD.md",
+    "section": "模块八：音频转文本（ASR）",
+    "approval_date": "2026-10-10"
+  },
+  "stage": "complete",
+  "status": "completed",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-asr-v1-1/request.md",
+    "prd_snapshot": "docs/requests/bilicatch-asr-v1-1/artifacts/prd-snapshot.md",
+    "requirement_analysis": "docs/requests/bilicatch-asr-v1-1/analysis/requirement-analysis.md",
+    "requirement_map": "docs/requests/bilicatch-asr-v1-1/requirements/requirement-map.md",
+    "audio_transcription_module": "docs/requests/bilicatch-asr-v1-1/requirements/modules/audio-transcription.md",
+    "audio_transcription_page_design": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/design/page-design.md",
+    "code_context": "docs/requests/bilicatch-asr-v1-1/artifacts/code-context.md",
+    "audio_transcription_architecture_design": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/design/architecture-design.md",
+    "audio_transcription_spec": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/spec/spec.md",
+    "audio_transcription_clarifications": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/spec/clarifications.md",
+    "audio_transcription_plan": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/plan/plan.md",
+    "audio_transcription_task_board": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/plan/task-board.md",
+    "audio_transcription_changelog": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/execution/changelog.md",
+    "audio_transcription_verification": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/verification/verification.md",
+    "audio_transcription_review": "docs/requests/bilicatch-asr-v1-1/module-runs/audio-transcription/review/review.md"
+  },
+  "approvals": {
+    "design_direction_approved": true
+  },
+  "module_flow": {
+    "execution_mode": "sequential",
+    "current_module_id": "audio-transcription",
+    "pending_module_ids": [],
+    "completed_module_ids": [
+      "audio-transcription"
+    ],
+    "modules": {
+      "audio-transcription": {
+        "source_module_path": "requirements/modules/audio-transcription.md",
+        "page_design_required": true,
+        "architecture_design_required": true,
+        "approvals": {
+          "spec_approved": true,
+          "plan_approved": true
+        },
+        "status": "completed"
+      }
+    }
+  },
+  "loop": {
+    "iteration": 12,
+    "state": "completed",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": null
+  }
+}

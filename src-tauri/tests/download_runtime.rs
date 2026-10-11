@@ -114,6 +114,8 @@ fn draft(mode: DownloadMode, page: u32) -> DownloadTaskDraft {
         codec: (mode != DownloadMode::AudioOnly).then_some(bilicatch_lib::models::VideoCodec::Avc),
         audio_format: (mode == DownloadMode::AudioOnly).then_some(AudioFormat::Mp3),
         audio_bitrate_id: (mode == DownloadMode::AudioOnly).then(|| "320".into()),
+        auto_transcribe: false,
+        transcription_preset: None,
     }
 }
 

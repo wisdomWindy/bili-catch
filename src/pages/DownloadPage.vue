@@ -162,11 +162,13 @@ onBeforeUnmount(() => {
           :codec="store.codec"
           :audio-format="store.audioFormat"
           :audio-bitrate-id="store.audioBitrateId"
+          :auto-transcribe="store.autoTranscribe"
           @mode="selectMode"
           @quality="store.setVideoQuality"
           @codec="store.setVideoCodec"
           @audio-format="selectAudioFormat"
           @audio-bitrate="store.setAudioProfile"
+          @auto-transcribe="store.setAutoTranscribe"
         />
       </div>
       <ActionBar

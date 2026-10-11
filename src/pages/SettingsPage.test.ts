@@ -14,7 +14,7 @@ import { useSettingsStore } from "../features/settings/store";
 import SettingsPage from "./SettingsPage.vue";
 
 const base: SettingsSnapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   revision: 0,
   values: {
     downloadDirectory: "D:/Downloads/BiliCatch",
@@ -29,6 +29,17 @@ const base: SettingsSnapshot = {
     completionSound: true,
     closeBehavior: "minimizeToTray",
     autoCheckUpdates: true,
+    defaultAsrModel: "base",
+    defaultTranscriptionLanguage: "auto",
+    defaultTranscriptFormat: "srt",
+    transcriptionTimestamps: true,
+    transcriptionPunctuation: true,
+    preferPlatformSubtitles: true,
+    autoTranscribeDownloads: false,
+    maxConcurrentTranscriptions: 1,
+    asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+    asrGpuMode: "auto",
+    asrModelSource: "",
   },
 };
 
@@ -71,12 +82,12 @@ async function renderReady(selectedDirectory: string | null = null) {
 }
 
 describe("SettingsPage", () => {
-  it("renders four continuous sections, 12 controls, and three about rows", async () => {
+  it("renders five continuous sections, 23 controls, and three about rows", async () => {
     const { wrapper } = await renderReady();
 
     expect(wrapper.get("[data-testid='page-heading']").text()).toBe("设置");
-    expect(wrapper.findAll(".settings-section")).toHaveLength(4);
-    expect(wrapper.findAll("[data-setting-field]")).toHaveLength(12);
+    expect(wrapper.findAll(".settings-section")).toHaveLength(5);
+    expect(wrapper.findAll("[data-setting-field]")).toHaveLength(23);
     expect(wrapper.findAll("[data-about-row]")).toHaveLength(3);
     expect(wrapper.text()).not.toContain("手动保存");
     expect(wrapper.find(".empty-state").exists()).toBe(false);
@@ -84,7 +95,7 @@ describe("SettingsPage", () => {
       const label = row.get("label");
       expect(row.get(`#${label.attributes("for")}`).attributes("id")).toBe(label.attributes("for"));
     }
-    expect(wrapper.findAll("[role='switch']")).toHaveLength(3);
+    expect(wrapper.findAll("[role='switch']")).toHaveLength(7);
   });
 
   it("saves the completion sound preference and disables it when notifications are off", async () => {
@@ -147,7 +158,7 @@ describe("SettingsPage", () => {
     const loading = mount(SettingsPage, {
       global: { plugins: [pinia, createAppI18n()] },
     });
-    expect(loading.findAll(".setting-skeleton")).toHaveLength(12);
+    expect(loading.findAll(".setting-skeleton")).toHaveLength(23);
     loading.unmount();
 
     const failedPinia = createPinia();

@@ -4,7 +4,7 @@ import type { SettingsSnapshot } from "./contracts";
 import { createSettingsService } from "./service";
 
 const snapshot: SettingsSnapshot = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   revision: 0,
   values: {
     downloadDirectory: "D:/Downloads/BiliCatch",
@@ -19,6 +19,17 @@ const snapshot: SettingsSnapshot = {
     completionSound: true,
     closeBehavior: "minimizeToTray",
     autoCheckUpdates: true,
+    defaultAsrModel: "base",
+    defaultTranscriptionLanguage: "auto",
+    defaultTranscriptFormat: "srt",
+    transcriptionTimestamps: true,
+    transcriptionPunctuation: true,
+    preferPlatformSubtitles: true,
+    autoTranscribeDownloads: false,
+    maxConcurrentTranscriptions: 1,
+    asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+    asrGpuMode: "auto",
+    asrModelSource: "",
   },
 };
 

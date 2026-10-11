@@ -3,7 +3,7 @@ import { FolderOpen, LoaderCircle } from "@lucide/vue";
 import type { FieldSaveState } from "../contracts";
 import SettingRow from "./SettingRow.vue";
 
-defineProps<{ id: string; field: "downloadDirectory" | "temporaryDirectory"; label: string; description?: string; value: string; status: FieldSaveState; picking: boolean; selectLabel: string }>();
+defineProps<{ id: string; field: "downloadDirectory" | "temporaryDirectory" | "asrModelDirectory"; label: string; description?: string; value: string; status: FieldSaveState; picking: boolean; selectLabel: string }>();
 const emit = defineEmits<{ select: [button: HTMLButtonElement] }>();
 function select(event: MouseEvent) { emit("select", event.currentTarget as HTMLButtonElement); }
 </script>

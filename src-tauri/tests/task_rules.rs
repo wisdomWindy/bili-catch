@@ -23,6 +23,8 @@ fn draft(mode: DownloadMode) -> DownloadTaskDraft {
         codec: Some(VideoCodec::Avc),
         audio_format: None,
         audio_bitrate_id: None,
+        auto_transcribe: false,
+        transcription_preset: None,
     }
 }
 

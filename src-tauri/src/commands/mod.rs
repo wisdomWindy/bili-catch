@@ -10,6 +10,7 @@ use crate::{
 pub(crate) mod auth;
 pub(crate) mod settings;
 pub(crate) mod tasks;
+pub(crate) mod transcription;
 
 #[tauri::command]
 pub fn get_app_info(app: AppHandle) -> Result<AppInfo, AppError> {

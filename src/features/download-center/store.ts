@@ -30,6 +30,7 @@ interface DownloadCenterState {
   codec: VideoCodec | null;
   audioFormat: AudioFormat | null;
   audioBitrateId: string | null;
+  autoTranscribe: boolean;
   authenticated: boolean;
   lastMp3Profile: AudioProfileId;
   audioFallbackNotice: boolean;
@@ -74,6 +75,7 @@ export const useDownloadCenterStore = defineStore("download-center", {
     codec: null,
     audioFormat: null,
     audioBitrateId: null,
+    autoTranscribe: false,
     authenticated: false,
     lastMp3Profile: "320",
     audioFallbackNotice: false,
@@ -83,6 +85,12 @@ export const useDownloadCenterStore = defineStore("download-center", {
       downloadDirectory: "Downloads",
       defaultVideoQuality: "80",
       defaultAudioFormat: "m4a",
+      autoTranscribeDownloads: false,
+      defaultAsrModel: "base",
+      defaultTranscriptionLanguage: "zh",
+      defaultTranscriptFormat: "srt",
+      transcriptionTimestamps: true,
+      transcriptionPunctuation: true,
     },
     requestToken: 0,
   }),
@@ -116,8 +124,12 @@ export const useDownloadCenterStore = defineStore("download-center", {
     },
     configureDefaults(defaults: DownloadDefaults) {
       const outputFollowsDefault = this.outputDir === this.defaults.downloadDirectory;
+      const transcriptionFollowsDefault = this.autoTranscribe === this.defaults.autoTranscribeDownloads;
       this.defaults = { ...defaults };
       if (outputFollowsDefault) this.outputDir = defaults.downloadDirectory;
+      if (transcriptionFollowsDefault && this.mode !== "video-only") {
+        this.autoTranscribe = defaults.autoTranscribeDownloads;
+      }
     },
     applyResult(result: ParseVideoResult) {
       this.result = result;
@@ -137,6 +149,7 @@ export const useDownloadCenterStore = defineStore("download-center", {
       this.lastMp3Profile = "320";
       this.audioFallbackNotice = false;
       this.videoFallbackNotice = false;
+      this.autoTranscribe = this.defaults.autoTranscribeDownloads;
       this.status = "success";
       this.error = null;
     },
@@ -185,8 +198,11 @@ export const useDownloadCenterStore = defineStore("download-center", {
     },
     setMode(mode: DownloadMode, authenticated?: boolean) {
       const isAuthenticated = authenticated ?? this.authenticated;
+      const previousMode = this.mode;
       this.mode = mode;
       this.authenticated = isAuthenticated;
+      if (mode === "video-only") this.autoTranscribe = false;
+      else if (previousMode !== mode) this.autoTranscribe = this.defaults.autoTranscribeDownloads;
       if (mode !== "audio-only") {
         this.audioFormat = null;
         this.audioBitrateId = null;
@@ -251,6 +267,9 @@ export const useDownloadCenterStore = defineStore("download-center", {
       this.lastMp3Profile = profileId;
       this.audioBitrateId = profileId;
     },
+    setAutoTranscribe(value: boolean) {
+      this.autoTranscribe = this.mode === "video-only" ? false : value;
+    },
     reconcileAudioAvailability(authenticated: boolean) {
       this.authenticated = authenticated;
       if (!this.result || this.mode !== "audio-only" || !this.audioFormat) return;
@@ -265,6 +284,7 @@ export const useDownloadCenterStore = defineStore("download-center", {
       const previousCodec = this.codec;
       const previousAudioFormat = this.audioFormat;
       const previousAudioBitrate = this.audioBitrateId;
+      const previousAutoTranscribe = this.autoTranscribe;
       this.authenticated = authenticated;
       this.videoFallbackNotice = false;
       if (!input) {
@@ -274,6 +294,7 @@ export const useDownloadCenterStore = defineStore("download-center", {
       await this.parse(service, input);
       if (!this.result || this.status !== "success") return;
       this.setMode(previousMode, authenticated);
+      this.setAutoTranscribe(previousAutoTranscribe);
       if (previousMode !== "audio-only") {
         if (isVideoVariantValid(this.result.videoVariants, previousQuality, previousCodec)) {
           this.qualityId = previousQuality;
@@ -317,6 +338,16 @@ export const useDownloadCenterStore = defineStore("download-center", {
           codec: this.mode === "audio-only" ? null : this.codec,
           audioFormat: this.mode === "audio-only" ? this.audioFormat : null,
           audioBitrateId: this.mode === "audio-only" ? this.audioBitrateId : null,
+          autoTranscribe: this.autoTranscribe,
+          transcriptionPreset: this.autoTranscribe
+            ? {
+                modelId: this.defaults.defaultAsrModel,
+                language: this.defaults.defaultTranscriptionLanguage,
+                format: this.defaults.defaultTranscriptFormat,
+                timestamps: this.defaults.transcriptionTimestamps,
+                punctuation: this.defaults.transcriptionPunctuation,
+              }
+            : null,
         }));
     },
     clear() {
@@ -332,6 +363,7 @@ export const useDownloadCenterStore = defineStore("download-center", {
       this.codec = null;
       this.audioFormat = null;
       this.audioBitrateId = null;
+      this.autoTranscribe = this.defaults.autoTranscribeDownloads;
       this.lastMp3Profile = "320";
       this.audioFallbackNotice = false;
       this.videoFallbackNotice = false;

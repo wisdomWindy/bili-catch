@@ -20,6 +20,12 @@ export function createSettingsEffectSink(
         downloadDirectory: values.downloadDirectory,
         defaultVideoQuality: values.defaultVideoQuality,
         defaultAudioFormat: values.defaultAudioFormat,
+        autoTranscribeDownloads: values.autoTranscribeDownloads,
+        defaultAsrModel: values.defaultAsrModel,
+        defaultTranscriptionLanguage: values.defaultTranscriptionLanguage,
+        defaultTranscriptFormat: values.defaultTranscriptFormat,
+        transcriptionTimestamps: values.transcriptionTimestamps,
+        transcriptionPunctuation: values.transcriptionPunctuation,
       });
     },
   };

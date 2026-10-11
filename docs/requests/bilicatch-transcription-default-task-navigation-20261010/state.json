@@ -1,0 +1,42 @@
+{
+  "request_id": "bilicatch-transcription-default-task-navigation-20261010",
+  "source": {
+    "type": "direct_user_defect_report",
+    "date": "2026-10-10",
+    "evidence": "USER-DEFECT-01"
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/request.md",
+    "bugfix_source": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/artifacts/bugfix-source.md",
+    "prd_snapshot": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/artifacts/prd-snapshot.md",
+    "code_context": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/artifacts/code-context.md",
+    "spec": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/verification/verification.md",
+    "review": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/review/review.md",
+    "architecture_design": "docs/requests/bilicatch-transcription-default-task-navigation-20261010/design/architecture-design.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "speed_profile": {
+    "level": "S2 scoped",
+    "reason": "两个有共同用户流程但分属设置迁移和页面加载时序的缺陷，需要前端与 Rust 定向回归。",
+    "context_budget": "targeted",
+    "artifact_density": "compact"
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 7,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "manual_reopen"
+  }
+}

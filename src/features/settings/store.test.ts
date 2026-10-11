@@ -10,7 +10,7 @@ function makeSnapshot(
   values: Partial<SettingsSnapshot["values"]> = {},
 ): SettingsSnapshot {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     revision,
     values: {
       downloadDirectory: "D:/Downloads/BiliCatch",
@@ -25,6 +25,17 @@ function makeSnapshot(
       completionSound: true,
       closeBehavior: "minimizeToTray",
       autoCheckUpdates: true,
+      defaultAsrModel: "base",
+      defaultTranscriptionLanguage: "auto",
+      defaultTranscriptFormat: "srt",
+      transcriptionTimestamps: true,
+      transcriptionPunctuation: true,
+      preferPlatformSubtitles: true,
+      autoTranscribeDownloads: false,
+      maxConcurrentTranscriptions: 1,
+      asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+      asrGpuMode: "auto",
+      asrModelSource: "",
       ...values,
     },
   };

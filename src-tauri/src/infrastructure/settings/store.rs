@@ -127,8 +127,8 @@ mod tests {
     use super::{SettingsCache, TransactionalSettingsStore};
     use crate::{
         models::{
-            AudioFormat, CloseBehavior, SettingsDocument, SettingsValues, ThemePreference,
-            VideoQualityId,
+            AsrModelId, AudioFormat, CloseBehavior, GpuMode, SettingsDocument, SettingsValues,
+            ThemePreference, TranscriptFormat, TranscriptionLanguage, VideoQualityId,
         },
         services::settings::SettingsStorePort,
     };
@@ -157,7 +157,7 @@ mod tests {
 
     fn document(revision: u64, theme: ThemePreference) -> SettingsDocument {
         SettingsDocument {
-            schema_version: 1,
+            schema_version: 2,
             revision,
             values: SettingsValues {
                 download_directory: "C:/Downloads/BiliCatch".into(),
@@ -172,6 +172,17 @@ mod tests {
                 completion_sound: true,
                 close_behavior: CloseBehavior::MinimizeToTray,
                 auto_check_updates: true,
+                default_asr_model: AsrModelId::Base,
+                default_transcription_language: TranscriptionLanguage::Auto,
+                default_transcript_format: TranscriptFormat::Srt,
+                transcription_timestamps: true,
+                transcription_punctuation: true,
+                prefer_platform_subtitles: true,
+                auto_transcribe_downloads: false,
+                max_concurrent_transcriptions: 1,
+                asr_model_directory: "C:/AppData/BiliCatch/models/whisper".into(),
+                asr_gpu_mode: GpuMode::Auto,
+                asr_model_source: String::new(),
             },
         }
     }

@@ -35,6 +35,15 @@ function service(result = fixture): ParseVideoService {
   return { parseVideo: vi.fn().mockResolvedValue(result) };
 }
 
+const transcriptionDefaults = {
+  autoTranscribeDownloads: false,
+  defaultAsrModel: "base" as const,
+  defaultTranscriptionLanguage: "auto" as const,
+  defaultTranscriptFormat: "srt" as const,
+  transcriptionTimestamps: true,
+  transcriptionPunctuation: true,
+};
+
 describe("download center store", () => {
   beforeEach(() => setActivePinia(createPinia()));
 
@@ -216,6 +225,7 @@ describe("download center store", () => {
       downloadDirectory: "D:/Media",
       defaultVideoQuality: "80",
       defaultAudioFormat: "mp3",
+      ...transcriptionDefaults,
     });
 
     expect(store.outputDir).toBe("D:/Media");
@@ -231,6 +241,7 @@ describe("download center store", () => {
       downloadDirectory: "D:/Media",
       defaultVideoQuality: "127",
       defaultAudioFormat: "flac",
+      ...transcriptionDefaults,
     });
 
     store.applyResult(fixture);
@@ -250,6 +261,7 @@ describe("download center store", () => {
       downloadDirectory: "D:/Next",
       defaultVideoQuality: "64",
       defaultAudioFormat: "mp3",
+      ...transcriptionDefaults,
     });
     expect(store.audioFormat).toBe("m4a");
 
@@ -324,6 +336,7 @@ describe("download center store", () => {
       downloadDirectory: "D:/Media",
       defaultVideoQuality: "80",
       defaultAudioFormat: "flac",
+      ...transcriptionDefaults,
     });
     store.applyResult(fixture);
 
@@ -331,5 +344,34 @@ describe("download center store", () => {
 
     expect([store.audioFormat, store.audioBitrateId]).toEqual(["m4a", "source"]);
     expect(store.consumeAudioFallbackNotice()).toBe(true);
+  });
+
+  it("captures the current transcription preset in each auto-transcribe draft", async () => {
+    const store = useDownloadCenterStore();
+    store.configureDefaults({
+      downloadDirectory: "D:/Media",
+      defaultVideoQuality: "80",
+      defaultAudioFormat: "m4a",
+      ...transcriptionDefaults,
+      autoTranscribeDownloads: true,
+      defaultAsrModel: "small",
+      defaultTranscriptionLanguage: "zh",
+      defaultTranscriptFormat: "markdown",
+    });
+    await store.parse(service(), "BV1xx411c7BF");
+
+    expect(store.buildDrafts()[0]).toMatchObject({
+      autoTranscribe: true,
+      transcriptionPreset: {
+        modelId: "small",
+        language: "zh",
+        format: "markdown",
+        timestamps: true,
+        punctuation: true,
+      },
+    });
+
+    store.setMode("video-only");
+    expect(store.buildDrafts()[0]).toMatchObject({ autoTranscribe: false, transcriptionPreset: null });
   });
 });

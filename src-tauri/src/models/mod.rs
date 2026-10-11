@@ -4,6 +4,7 @@ mod auth;
 mod parse;
 mod settings;
 mod task;
+mod transcription;
 
 pub use app_error::{AppError, AppErrorCode};
 pub use audio::AudioOutputProfile;
@@ -21,6 +22,16 @@ pub use task::{
     CreateDownloadTasksRequest, CreateTasksResult, DownloadMode, DownloadTask, DownloadTaskDraft,
     OpenDownloadTaskRequest, OpenTarget, TaskAction, TaskControlRequest, TaskListSnapshot,
     TaskProgressEvent, TaskRemovedEvent, TaskStatus,
+};
+pub use transcription::{
+    AsrModel, AsrModelId, AsrModelListSnapshot, ControlTranscribeTaskRequest,
+    CreateTranscribeTaskRequest, CreateTranscribeTaskResult, ExportTranscriptRequest,
+    ExportTranscriptResult, GpuMode, InspectTranscriptionSourceRequest, MediaKind, MediaSourceInfo,
+    ModelDownloadProgressEvent, ModelDownloadState, ModelRequest, SaveTranscriptEditsRequest,
+    TaskIdRequest, TranscribeTask, TranscribeTaskAction, TranscribeTaskListSnapshot,
+    TranscribeTaskStatus, TranscriptFormat, TranscriptResult, TranscriptSegment,
+    TranscriptionLanguage, TranscriptionOptions, TranscriptionProgress, TranscriptionProgressEvent,
+    TranscriptionRemovedEvent, TranscriptionSource,
 };
 
 use serde::Serialize;

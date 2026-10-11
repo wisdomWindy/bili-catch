@@ -9,12 +9,74 @@ const task = (id: string, status: DownloadTask["status"], revision = 1): Downloa
   fileName: `${id}.mp4`, outputDir: "Downloads", outputPath: null, bvid: "BV1", cid: 1,
   page: 1, partTitle: id, mode: "video-only", qualityId: "80", codec: "avc",
   audioFormat: null, audioBitrateId: null, status, controlRequest: "none", progressPercent: 0,
+  autoTranscribe: false, transcriptionPreset: null,
   bytesDownloaded: "0", totalBytes: null, speedBytesPerSecond: "0", etaSeconds: null,
   automaticRetryCount: 0, nextRetryAt: null, error: null,
 });
 
 describe("task management store", () => {
   beforeEach(() => setActivePinia(createPinia()));
+
+  it("reuses one initialization while the same runtime is hydrating and ready", async () => {
+    let resolveList!: (value: { sequence: number; capacity: 100; tasks: DownloadTask[] }) => void;
+    const list = vi.fn(() => new Promise<{ sequence: number; capacity: 100; tasks: DownloadTask[] }>((resolve) => {
+      resolveList = resolve;
+    }));
+    const subscribe = vi.fn(async () => vi.fn());
+    const created = task("created", "queued");
+    const create = vi.fn(async () => ({ sequence: 1, capacity: 100 as const, tasks: [created], reused: false }));
+    const service = {
+      list, create, control: vi.fn(), pauseAll: vi.fn(), clearCompleted: vi.fn(), open: vi.fn(),
+    };
+    const events: TaskEventSource = { subscribe };
+    const store = useTaskManagementStore();
+
+    const first = store.initialize(service, events);
+    await Promise.resolve();
+    const second = store.initialize(service, events);
+
+    expect(subscribe).toHaveBeenCalledOnce();
+    expect(list).toHaveBeenCalledOnce();
+    resolveList({ sequence: 0, capacity: 100, tasks: [] });
+    await Promise.all([first, second]);
+    const clearIfMatches = vi.fn();
+    await store.initialize(service, events, {
+      handoffId: "handoff-1",
+      items: [{
+        canonicalUrl: "https://www.bilibili.com/video/BV1",
+        bvid: "BV1", cid: 1, page: 1, partTitle: "P1", videoTitle: "Video", partCount: 1,
+        mode: "video-audio", outputDir: "D:/Downloads", qualityId: "80", codec: "avc",
+        audioFormat: null, audioBitrateId: null, autoTranscribe: false, transcriptionPreset: null,
+      }],
+      clearIfMatches,
+    });
+    expect(subscribe).toHaveBeenCalledOnce();
+    expect(list).toHaveBeenCalledOnce();
+    expect(create).toHaveBeenCalledOnce();
+    expect(clearIfMatches).toHaveBeenCalledWith("handoff-1");
+    expect(store.byId.created).toEqual(created);
+  });
+
+  it("releases a subscription that resolves after the store is disposed", async () => {
+    let resolveSubscribe!: (unsubscribe: () => void) => void;
+    const unsubscribe = vi.fn();
+    const events: TaskEventSource = {
+      subscribe: vi.fn(() => new Promise<() => void>((resolve) => { resolveSubscribe = resolve; })),
+    };
+    const list = vi.fn(async () => ({ sequence: 0, capacity: 100 as const, tasks: [] }));
+    const service = {
+      list, create: vi.fn(), control: vi.fn(), pauseAll: vi.fn(), clearCompleted: vi.fn(), open: vi.fn(),
+    };
+    const store = useTaskManagementStore();
+
+    const initializing = store.initialize(service, events);
+    store.dispose();
+    resolveSubscribe(unsubscribe);
+    await initializing;
+
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    expect(list).not.toHaveBeenCalled();
+  });
 
   it("replays newer buffered events after the snapshot and ignores older events", async () => {
     let progress!: (event: TaskProgressEvent) => void;

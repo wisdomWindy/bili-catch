@@ -15,8 +15,9 @@ pub use notifications::{
     CompletionNotifyingTaskEventSink, TaskCompletionNotifier,
 };
 pub use ports::{
-    DeferredTaskExecutor, ExecutionControlSpec, SchedulerLimits, TaskCleanerPort, TaskEventSink,
-    TaskExecutionSpec, TaskExecutorPort, TaskSettingsPort, TaskStorePort,
+    CompletionForwardingTaskEventSink, DeferredTaskExecutor, DownloadCompletionSink,
+    ExecutionControlSpec, SchedulerLimits, TaskCleanerPort, TaskEventSink, TaskExecutionSpec,
+    TaskExecutorPort, TaskSettingsPort, TaskStorePort,
 };
 pub use state_machine::actions_for_status;
 pub use validation::{validate_create_request, ValidatedCreateRequest};

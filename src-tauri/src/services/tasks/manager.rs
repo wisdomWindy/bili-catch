@@ -136,6 +136,8 @@ impl TaskManager {
                 codec: draft.codec,
                 audio_format: draft.audio_format,
                 audio_bitrate_id: draft.audio_bitrate_id,
+                auto_transcribe: draft.auto_transcribe,
+                transcription_preset: draft.transcription_preset,
                 status: TaskStatus::Queued,
                 control_request: TaskControlRequest::None,
                 progress_percent: 0,

@@ -1,4 +1,5 @@
 import type { AudioFormat, VideoQualityId } from "../../contracts/media";
+import type { AsrModelId, TranscriptFormat, TranscriptionLanguage } from "../transcription/contracts";
 
 export type { AudioFormat } from "../../contracts/media";
 
@@ -51,6 +52,20 @@ export interface DownloadDefaults {
   downloadDirectory: string;
   defaultVideoQuality: VideoQualityId;
   defaultAudioFormat: AudioFormat;
+  autoTranscribeDownloads: boolean;
+  defaultAsrModel: AsrModelId;
+  defaultTranscriptionLanguage: TranscriptionLanguage;
+  defaultTranscriptFormat: TranscriptFormat;
+  transcriptionTimestamps: boolean;
+  transcriptionPunctuation: boolean;
+}
+
+export interface TranscriptionPreset {
+  modelId: AsrModelId;
+  language: TranscriptionLanguage;
+  format: TranscriptFormat;
+  timestamps: boolean;
+  punctuation: boolean;
 }
 
 export interface DownloadTaskDraft {
@@ -67,4 +82,6 @@ export interface DownloadTaskDraft {
   codec: VideoCodec | null;
   audioFormat: AudioFormat | null;
   audioBitrateId: string | null;
+  autoTranscribe: boolean;
+  transcriptionPreset: TranscriptionPreset | null;
 }

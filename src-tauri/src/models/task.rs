@@ -1,6 +1,18 @@
 use serde::{Deserialize, Serialize};
 
-use super::{AppError, AudioFormat, VideoCodec};
+use super::{
+    AppError, AsrModelId, AudioFormat, TranscriptFormat, TranscriptionLanguage, VideoCodec,
+};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TranscriptionPreset {
+    pub model_id: AsrModelId,
+    pub language: TranscriptionLanguage,
+    pub format: TranscriptFormat,
+    pub timestamps: bool,
+    pub punctuation: bool,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -64,6 +76,10 @@ pub struct DownloadTaskDraft {
     pub codec: Option<VideoCodec>,
     pub audio_format: Option<AudioFormat>,
     pub audio_bitrate_id: Option<String>,
+    #[serde(default)]
+    pub auto_transcribe: bool,
+    #[serde(default)]
+    pub transcription_preset: Option<TranscriptionPreset>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -85,6 +101,10 @@ pub struct DownloadTask {
     pub codec: Option<VideoCodec>,
     pub audio_format: Option<AudioFormat>,
     pub audio_bitrate_id: Option<String>,
+    #[serde(default)]
+    pub auto_transcribe: bool,
+    #[serde(default)]
+    pub transcription_preset: Option<TranscriptionPreset>,
     pub status: TaskStatus,
     pub control_request: TaskControlRequest,
     pub progress_percent: u8,

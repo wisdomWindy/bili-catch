@@ -22,6 +22,8 @@ describe("task draft handoff store", () => {
         codec: "avc",
         audioFormat: null,
         audioBitrateId: null,
+        autoTranscribe: false,
+        transcriptionPreset: null,
       },
     ]);
 

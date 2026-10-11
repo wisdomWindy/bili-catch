@@ -181,6 +181,8 @@ fn spec(mode: DownloadMode, temporary: &Path, output: &Path) -> TaskExecutionSpe
             codec: Some(VideoCodec::Avc),
             audio_format: None,
             audio_bitrate_id: None,
+            auto_transcribe: false,
+            transcription_preset: None,
             status: TaskStatus::Downloading,
             control_request: TaskControlRequest::None,
             progress_percent: 0,

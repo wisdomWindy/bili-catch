@@ -90,6 +90,53 @@ fn install_directory_defaults_create_app_owned_paths() {
 }
 
 #[test]
+fn application_paths_keep_models_in_the_install_directory() {
+    let root = tempfile::tempdir().expect("temp root");
+    let install = root.path().join("install");
+    let app_data = root.path().join("app-data");
+    std::fs::create_dir_all(&install).expect("install directory");
+
+    let defaults = SettingsDefaults::from_application_paths(&install, &app_data)
+        .expect("application defaults should resolve");
+
+    assert_eq!(
+        defaults.download_directory,
+        install.join("download").to_string_lossy()
+    );
+    assert_eq!(
+        defaults.asr_model_directory,
+        install.join("models").join("whisper").to_string_lossy()
+    );
+    assert!(install.join("models").join("whisper").is_dir());
+}
+
+#[test]
+fn application_paths_migrate_the_previous_app_data_model_default() {
+    let root = tempfile::tempdir().expect("temp root");
+    let install = root.path().join("install");
+    let app_data = root.path().join("app-data");
+    let previous_model_directory = app_data.join("models").join("whisper");
+    std::fs::create_dir_all(&install).expect("install directory");
+    std::fs::create_dir_all(&previous_model_directory).expect("previous model directory");
+    let defaults = SettingsDefaults::from_application_paths(&install, &app_data)
+        .expect("application defaults should resolve");
+    let seed_store = Arc::new(MemorySettingsStore::default());
+    let seed_manager = SettingsManager::load(seed_store, defaults.clone()).expect("seed settings");
+    let mut raw = serde_json::to_value(seed_manager.snapshot()).expect("settings JSON");
+    raw["values"]["asrModelDirectory"] =
+        Value::String(previous_model_directory.to_string_lossy().into_owned());
+    let store = Arc::new(MemorySettingsStore::with_raw(raw));
+
+    let manager = SettingsManager::load(store.clone(), defaults.clone()).expect("migration");
+
+    assert_eq!(
+        manager.snapshot().values.asr_model_directory,
+        defaults.asr_model_directory
+    );
+    assert_eq!(store.saved(), vec![manager.snapshot()]);
+}
+
+#[test]
 fn migration_replaces_legacy_install_sibling_defaults() {
     let root = tempfile::tempdir().expect("temp root");
     let install = root.path().join("bilicatch");
@@ -152,13 +199,37 @@ fn missing_store_persists_complete_runtime_defaults() {
     let manager = SettingsManager::load(store.clone(), defaults).expect("settings should load");
     let snapshot = manager.snapshot();
 
-    assert_eq!(snapshot.schema_version, 1);
+    assert_eq!(snapshot.schema_version, 2);
     assert_eq!(snapshot.revision, 0);
     assert_eq!(snapshot.values.download_directory, expected_download);
     assert_eq!(snapshot.values.temporary_directory, expected_temporary);
     assert_eq!(snapshot.values.max_concurrent_tasks, 3);
     assert_eq!(snapshot.values.connections_per_task, 8);
     assert_eq!(snapshot.values.locale, "zh-CN");
+    assert_eq!(
+        snapshot.values.default_asr_model,
+        bilicatch_lib::models::AsrModelId::Base
+    );
+    assert_eq!(
+        snapshot.values.default_transcription_language,
+        bilicatch_lib::models::TranscriptionLanguage::Zh
+    );
+    assert_eq!(
+        snapshot.values.default_transcript_format,
+        bilicatch_lib::models::TranscriptFormat::Srt
+    );
+    assert!(snapshot.values.transcription_timestamps);
+    assert!(snapshot.values.transcription_punctuation);
+    assert!(snapshot.values.prefer_platform_subtitles);
+    assert!(!snapshot.values.auto_transcribe_downloads);
+    assert_eq!(snapshot.values.max_concurrent_transcriptions, 1);
+    assert!(PathBuf::from(&snapshot.values.asr_model_directory)
+        .ends_with(PathBuf::from("models").join("whisper")));
+    assert_eq!(
+        snapshot.values.asr_gpu_mode,
+        bilicatch_lib::models::GpuMode::Auto
+    );
+    assert_eq!(snapshot.values.asr_model_source, "");
     assert_eq!(
         serde_json::to_value(&snapshot).expect("snapshot should serialize")["values"]
             ["completionSound"],
@@ -198,7 +269,7 @@ fn migration_repairs_invalid_fields_and_drops_unknown_fields() {
 fn future_schema_and_store_load_failures_do_not_overwrite_data() {
     let (_root, defaults) = defaults();
     let store = Arc::new(MemorySettingsStore::with_raw(json!({
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "revision": 0,
         "values": {}
     })));
@@ -220,6 +291,87 @@ fn future_schema_and_store_load_failures_do_not_overwrite_data() {
         .expect_err("load errors must be surfaced");
     assert_eq!(details(&error), "SETTINGS_STORE_UNAVAILABLE");
     assert!(failing_store.saved().is_empty());
+}
+
+#[test]
+fn schema_one_is_migrated_to_schema_two_with_transcription_defaults() {
+    let (_root, defaults) = defaults();
+    let store = Arc::new(MemorySettingsStore::with_raw(json!({
+        "schemaVersion": 1,
+        "revision": 9,
+        "values": {
+            "downloadDirectory": defaults.download_directory,
+            "temporaryDirectory": defaults.temporary_directory,
+            "theme": "dark",
+            "locale": "en-US"
+        }
+    })));
+
+    let manager = SettingsManager::load(store.clone(), defaults).expect("v1 migration");
+    let snapshot = manager.snapshot();
+
+    assert_eq!(snapshot.schema_version, 2);
+    assert_eq!(snapshot.revision, 9);
+    assert_eq!(snapshot.values.theme, ThemePreference::Dark);
+    assert_eq!(
+        snapshot.values.default_asr_model,
+        bilicatch_lib::models::AsrModelId::Base
+    );
+    assert_eq!(
+        snapshot.values.default_transcription_language,
+        bilicatch_lib::models::TranscriptionLanguage::Zh
+    );
+    assert_eq!(snapshot.values.max_concurrent_transcriptions, 1);
+    assert_eq!(store.saved(), vec![snapshot]);
+}
+
+#[test]
+fn schema_two_preserves_an_explicit_auto_transcription_language() {
+    let (_root, defaults) = defaults();
+    let seed_store = Arc::new(MemorySettingsStore::default());
+    let seed = SettingsManager::load(seed_store, defaults.clone())
+        .expect("seed settings should load")
+        .snapshot();
+    let mut raw = serde_json::to_value(seed).expect("settings should serialize");
+    raw["values"]["defaultTranscriptionLanguage"] = json!("auto");
+    let store = Arc::new(MemorySettingsStore::with_raw(raw));
+
+    let manager = SettingsManager::load(store.clone(), defaults).expect("v2 settings should load");
+
+    assert_eq!(
+        manager.snapshot().values.default_transcription_language,
+        bilicatch_lib::models::TranscriptionLanguage::Auto
+    );
+    assert!(store.saved().is_empty());
+}
+
+#[test]
+fn transcription_settings_validate_concurrency_and_model_source() {
+    let (_root, defaults) = defaults();
+    let store = Arc::new(MemorySettingsStore::default());
+    let manager = SettingsManager::load(store, defaults).expect("settings should load");
+
+    let error = manager
+        .update(SettingsPatch::MaxConcurrentTranscriptions(4))
+        .expect_err("transcription concurrency above three must fail");
+    assert_eq!(details(&error), "SETTINGS_INVALID_VALUE");
+
+    let error = manager
+        .update(SettingsPatch::AsrModelSource(
+            "http://mirror.example/models".into(),
+        ))
+        .expect_err("model mirrors must use HTTPS");
+    assert_eq!(details(&error), "SETTINGS_INVALID_VALUE");
+
+    let snapshot = manager
+        .update(SettingsPatch::AsrModelSource(
+            "  https://mirror.example/models/  ".into(),
+        ))
+        .expect("valid HTTPS model mirror should save");
+    assert_eq!(
+        snapshot.values.asr_model_source,
+        "https://mirror.example/models/"
+    );
 }
 
 #[test]

@@ -16,6 +16,26 @@ const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg", "ffmpeg-aarch64-apple-darwin"]
 )))]
 const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg"];
 
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+const BUNDLED_WHISPER_NAMES: &[&str] =
+    &["whisper-cli.exe", "whisper-cli-x86_64-pc-windows-msvc.exe"];
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-x86_64-apple-darwin"];
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-aarch64-apple-darwin"];
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-x86_64-unknown-linux-gnu"];
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-aarch64-unknown-linux-gnu"];
+#[cfg(not(any(
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "linux", target_arch = "x86_64"),
+    all(target_os = "linux", target_arch = "aarch64")
+)))]
+const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli"];
+
 fn resolve_ffmpeg_sidecar(
     resource_dir: &std::path::Path,
     executable_dir: &std::path::Path,
@@ -36,7 +56,24 @@ fn resolve_ffmpeg_sidecar(
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_ffmpeg_sidecar;
+    use super::{resolve_ffmpeg_sidecar, BUNDLED_WHISPER_NAMES};
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn resolves_the_installed_windows_whisper_sidecar_name() {
+        let temp = tempfile::tempdir().unwrap();
+        let executable_dir = temp.path().join("install");
+        let resource_dir = temp.path().join("resources");
+        std::fs::create_dir_all(&executable_dir).unwrap();
+        std::fs::create_dir_all(&resource_dir).unwrap();
+        let sidecar = executable_dir.join("whisper-cli.exe");
+        std::fs::write(&sidecar, b"whisper").unwrap();
+
+        let resolved =
+            resolve_ffmpeg_sidecar(&resource_dir, &executable_dir, BUNDLED_WHISPER_NAMES);
+
+        assert_eq!(resolved, sidecar);
+    }
 
     #[test]
     fn resolves_a_sidecar_from_the_macos_executable_directory() {
@@ -98,8 +135,9 @@ pub fn run() {
             );
             app.manage(parser.clone());
             app.manage(auth_manager.clone());
+            let restore_auth_manager = auth_manager.clone();
             tauri::async_runtime::spawn(async move {
-                let _ = auth_manager.restore_on_startup().await;
+                let _ = restore_auth_manager.restore_on_startup().await;
             });
 
             let resource_dir = app.path().resource_dir()?;
@@ -109,11 +147,16 @@ pub fn run() {
                 .parent()
                 .map(std::path::Path::to_path_buf)
                 .ok_or_else(|| std::io::Error::other("executable has no parent directory"))?;
+            let app_data_directory = app.path().app_data_dir()?;
             let ffmpeg_path =
                 resolve_ffmpeg_sidecar(&resource_dir, &install_directory, BUNDLED_FFMPEG_NAMES);
-            let defaults =
-                services::settings::SettingsDefaults::from_install_directory(install_directory)
-                    .map_err(|error| std::io::Error::other(error.message))?;
+            let whisper_path =
+                resolve_ffmpeg_sidecar(&resource_dir, &install_directory, BUNDLED_WHISPER_NAMES);
+            let defaults = services::settings::SettingsDefaults::from_application_paths(
+                &install_directory,
+                &app_data_directory,
+            )
+            .map_err(|error| std::io::Error::other(error.message))?;
             let settings_store = infrastructure::settings::TauriSettingsStore::build(app)
                 .map_err(|error| std::io::Error::other(error.message))?;
             let settings_manager = Arc::new(
@@ -122,8 +165,11 @@ pub fn run() {
             );
             app.manage(settings_manager.clone());
 
-            let store_path = app.path().app_data_dir()?.join("tasks.json");
-            let task_events = Arc::new(services::tasks::CompletionNotifyingTaskEventSink::new(
+            let store_path = app_data_directory.join("tasks.json");
+            let completion_hook = Arc::new(
+                infrastructure::transcription::runtime::LateBoundTranscriptionCompletionHook::default(),
+            );
+            let notifying_task_events = Arc::new(services::tasks::CompletionNotifyingTaskEventSink::new(
                 Arc::new(infrastructure::tasks::TauriTaskEventSink::new(
                     app.handle().clone(),
                 )),
@@ -132,12 +178,16 @@ pub fn run() {
                     app.handle().clone(),
                 )),
             ));
+            let task_events = Arc::new(services::tasks::CompletionForwardingTaskEventSink::new(
+                notifying_task_events,
+                completion_hook.clone(),
+            ));
             let task_manager = Arc::new(
                 services::tasks::TaskManager::new(
                     Arc::new(infrastructure::tasks::JsonTaskStore::new(store_path)),
                     task_events,
                     Arc::new(infrastructure::tasks::FileTaskCleaner),
-                    settings_manager,
+                    settings_manager.clone(),
                 )
                 .map_err(|error| std::io::Error::other(error.message))?,
             );
@@ -213,10 +263,46 @@ pub fn run() {
                 downloader.clone(),
                 video_workspace,
                 Arc::new(infrastructure::video::DeferredFfmpegVideoMuxer::new(
-                    ffmpeg_path,
+                    ffmpeg_path.clone(),
                 )),
                 task_manager.clone(),
             ));
+
+            let transcription_event_sink = Arc::new(
+                infrastructure::transcription::tauri_adapter::TauriTranscriptionEventSink::new(
+                    app.handle().clone(),
+                    settings_manager.clone(),
+                ),
+            );
+            let transcription_manager = Arc::new(
+                services::transcription::TranscriptionManager::load(
+                    Arc::new(
+                        infrastructure::transcription::json_store::JsonTranscriptionStore::new(
+                            app_data_directory.join("transcriptions.json"),
+                        ),
+                    ),
+                    transcription_event_sink.clone(),
+                )
+                .map_err(|error| std::io::Error::other(error.message))?,
+            );
+            let transcription_runtime = Arc::new(
+                infrastructure::transcription::runtime::TranscriptionRuntime::new(
+                    transcription_manager,
+                    settings_manager.clone(),
+                    task_manager.clone(),
+                    ffmpeg_path,
+                    whisper_path,
+                    transcription_event_sink,
+                    Arc::new(
+                        infrastructure::transcription::platform_subtitle::BilibiliSubtitleProvider::new(
+                            auth_manager,
+                        )
+                        .map_err(|error| std::io::Error::other(error.message))?,
+                    ),
+                ),
+            );
+            completion_hook.bind(&transcription_runtime);
+            app.manage(transcription_runtime.clone());
             let executor = Arc::new(services::download_runtime::StrategyRegistry::new(
                 audio_executor,
                 video_executor,
@@ -229,6 +315,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 while !runtime_shutdown.load(Ordering::Acquire) {
                     runner.tick().await;
+                    transcription_runtime.tick();
                     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                 }
             });
@@ -249,7 +336,21 @@ pub fn run() {
             commands::tasks::control_download_task,
             commands::tasks::pause_all_download_tasks,
             commands::tasks::clear_completed_tasks,
-            commands::tasks::open_download_task
+            commands::tasks::open_download_task,
+            commands::transcription::inspect_transcription_source,
+            commands::transcription::list_transcribe_tasks,
+            commands::transcription::create_transcribe_task,
+            commands::transcription::control_transcribe_task,
+            commands::transcription::clear_completed_transcribe_tasks,
+            commands::transcription::list_asr_models,
+            commands::transcription::download_asr_model,
+            commands::transcription::cancel_asr_model_download,
+            commands::transcription::verify_asr_model,
+            commands::transcription::delete_asr_model,
+            commands::transcription::get_transcript_result,
+            commands::transcription::save_transcript_edits,
+            commands::transcription::export_transcript,
+            commands::transcription::open_transcript_output
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

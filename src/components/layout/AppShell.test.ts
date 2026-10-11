@@ -28,6 +28,7 @@ describe("AppShell", () => {
     expect(wrapper.findAll("[data-testid='primary-nav'] a").map((link) => link.text())).toEqual([
       "下载中心",
       "任务列表",
+      "音频转文本",
       "设置",
     ]);
     expect(wrapper.get("[data-testid='topbar-title']").text()).toBe("下载中心");

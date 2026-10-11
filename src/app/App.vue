@@ -15,6 +15,8 @@ import { useAuthStore } from "../features/authentication/store";
 import { useSettingsEffectSink, useSettingsService } from "../features/settings/injection";
 import { useSettingsStore } from "../features/settings/store";
 import StartupUpdateBridge from "../features/settings/components/StartupUpdateBridge.vue";
+import { useTaskManagementStore } from "../features/task-management/store";
+import { useTranscriptionStore } from "../features/transcription/store";
 
 const props = defineProps<{ appService: AppIpcService }>();
 const store = useAppStore();
@@ -24,6 +26,8 @@ const authEvents = useAuthEventSource();
 const settingsStore = useSettingsStore();
 const settingsService = useSettingsService();
 const settingsEffects = useSettingsEffectSink();
+const taskStore = useTaskManagementStore();
+const transcriptionStore = useTranscriptionStore();
 const { locale, t } = useI18n();
 const router = useRouter();
 const resolvedTheme = ref<ResolvedTheme>("light");
@@ -54,6 +58,8 @@ onBeforeUnmount(() => {
   disposeTheme?.();
   authStore.dispose();
   settingsStore.dispose();
+  taskStore.dispose();
+  transcriptionStore.dispose();
   window.removeEventListener("bilicatch:tray-update-check", handleTrayUpdateCheck);
 });
 </script>

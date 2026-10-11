@@ -24,6 +24,8 @@ fn task(status: TaskStatus) -> DownloadTask {
         codec: None,
         audio_format: None,
         audio_bitrate_id: None,
+        auto_transcribe: false,
+        transcription_preset: None,
         status,
         control_request: TaskControlRequest::PauseRequested,
         progress_percent: 40,

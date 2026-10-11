@@ -9,6 +9,13 @@ export const APP_ERROR_CODES = [
   "E008",
   "E009",
   "E010",
+  "E011",
+  "E012",
+  "E013",
+  "E014",
+  "E015",
+  "E016",
+  "E017",
   "E_INTERNAL",
 ] as const;
 

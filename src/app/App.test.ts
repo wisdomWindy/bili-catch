@@ -8,6 +8,8 @@ import { settingsEffectSinkKey, settingsServiceKey } from "../features/settings/
 import type { SettingsService } from "../features/settings/service";
 import { createAppRouter } from "./router";
 import App from "./App.vue";
+import { useTaskManagementStore } from "../features/task-management/store";
+import { useTranscriptionStore } from "../features/transcription/store";
 
 function installMatchMedia() {
   Object.defineProperty(window, "matchMedia", {
@@ -23,7 +25,7 @@ function installMatchMedia() {
 function settingsFixture(): SettingsService {
   return {
     getSnapshot: vi.fn().mockResolvedValue({
-      schemaVersion: 1,
+      schemaVersion: 2,
       revision: 0,
       values: {
         downloadDirectory: "D:/Media",
@@ -38,6 +40,17 @@ function settingsFixture(): SettingsService {
         completionSound: true,
         closeBehavior: "minimizeToTray",
         autoCheckUpdates: true,
+        defaultAsrModel: "base",
+        defaultTranscriptionLanguage: "auto",
+        defaultTranscriptFormat: "srt",
+        transcriptionTimestamps: true,
+        transcriptionPunctuation: true,
+        preferPlatformSubtitles: true,
+        autoTranscribeDownloads: false,
+        maxConcurrentTranscriptions: 1,
+        asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+        asrGpuMode: "auto",
+        asrModelSource: "",
       },
     }),
     update: vi.fn(),
@@ -45,6 +58,44 @@ function settingsFixture(): SettingsService {
 }
 
 describe("App settings lifecycle", () => {
+  it("disposes shared task runtimes when the application root unmounts", async () => {
+    installMatchMedia();
+    const pinia = createPinia();
+    const taskDispose = vi.spyOn(useTaskManagementStore(pinia), "dispose");
+    const transcriptionDispose = vi.spyOn(useTranscriptionStore(pinia), "dispose");
+    const router = createAppRouter(createMemoryHistory());
+    await router.push("/download");
+    await router.isReady();
+    const wrapper = mount(App, {
+      props: {
+        appService: {
+          getAppInfo: vi.fn().mockResolvedValue({ name: "BiliCatch", version: "0.2.0" }),
+          checkBackendHealth: vi.fn().mockResolvedValue({ status: "ok", timestamp: "now" }),
+        },
+      },
+      global: {
+        plugins: [pinia, createAppI18n(), router],
+        provide: {
+          [settingsServiceKey as symbol]: settingsFixture(),
+          [settingsEffectSinkKey as symbol]: {
+            applyAppearance: vi.fn(),
+            applyCommitted: vi.fn(),
+          } satisfies SettingsEffectSink,
+        },
+        stubs: {
+          AppShell: { template: "<main><slot name='status' /><slot /></main>" },
+          BackendBanner: true,
+          DownloadNotificationBridge: { template: "<div><slot /></div>" },
+        },
+      },
+    });
+
+    wrapper.unmount();
+
+    expect(taskDispose).toHaveBeenCalledOnce();
+    expect(transcriptionDispose).toHaveBeenCalledOnce();
+  });
+
   it("hydrates settings once at the root regardless of the current route", async () => {
     installMatchMedia();
     const service = settingsFixture();

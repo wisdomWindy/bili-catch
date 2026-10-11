@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FilePlay, FolderOpen, MoreHorizontal, Pause, Play, RotateCcw, Trash2, X } from "@lucide/vue";
+import { FileAudio, FilePlay, FolderOpen, MoreHorizontal, Pause, Play, RotateCcw, Trash2, X } from "@lucide/vue";
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import AppIconButton from "../../../components/shared/AppIconButton.vue";
@@ -10,7 +10,7 @@ import TaskProgress from "./TaskProgress.vue";
 import TaskStatus from "./TaskStatus.vue";
 
 const props = defineProps<{ task: DownloadTask; pending: boolean }>();
-const emit = defineEmits<{ action: [action: TaskAction]; open: [target: OpenTarget] }>();
+const emit = defineEmits<{ action: [action: TaskAction]; open: [target: OpenTarget]; transcribe: [] }>();
 const { t } = useI18n();
 const actions = computed(() => actionsForStatus(props.task.status));
 const openMenu = ref<HTMLDetailsElement>();
@@ -59,6 +59,7 @@ function open(target: OpenTarget) {
       <small>{{ size }}</small>
     </div>
     <div class="task-row__actions">
+      <AppIconButton v-if="task.status === 'completed' && task.mode !== 'video-only' && task.outputPath" :icon="FileAudio" :label="t('tasks.actions.transcribe')" :disabled="pending" @click="emit('transcribe')" />
       <template v-if="task.status === 'completed'">
         <details ref="openMenu" class="task-open-menu">
           <summary :aria-label="t('tasks.actions.openOptions')" :title="t('tasks.actions.openOptions')">

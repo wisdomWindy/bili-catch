@@ -37,7 +37,14 @@ interface TaskState {
   destroyed: boolean;
 }
 
+interface TaskInitialization {
+  service: TaskService;
+  eventSource: TaskEventSource;
+  promise: Promise<void>;
+}
+
 const activeStatuses = new Set<DownloadTask["status"]>((["queued", "downloading", "paused", "processing"]));
+const taskInitializations = new WeakMap<object, TaskInitialization>();
 
 export const useTaskManagementStore = defineStore("task-management", {
   state: (): TaskState => ({
@@ -63,49 +70,82 @@ export const useTaskManagementStore = defineStore("task-management", {
     isFull(): boolean { return this.allTasks.length >= this.capacity; },
   },
   actions: {
-    async initialize(service: TaskService, eventSource: TaskEventSource, handoff?: HandoffSource) {
-      this.unsubscribe?.();
-      this.destroyed = false;
-      this.service = service;
-      this.status = "subscribing";
-      this.error = null;
-      this.eventError = null;
-      this.deletedTaskIds = {};
-      const buffered: BufferedEvent[] = [];
-      let hydrating = true;
-      const onProgress = (value: TaskProgressEvent) => hydrating ? buffered.push({ kind: "progress", value }) : this.applyProgress(value);
-      const onRemoved = (value: TaskRemovedEvent) => hydrating ? buffered.push({ kind: "removed", value }) : this.applyRemoved(value);
-      try {
-        this.unsubscribe = await eventSource.subscribe(onProgress, onRemoved);
-      } catch (error: unknown) {
-        this.eventError = normalizeIpcError(error);
-      }
-
-      this.status = "loading";
-      try {
-        const snapshot = await service.list();
-        if (this.destroyed) return;
-        this.byId = Object.fromEntries(snapshot.tasks.map((task) => [task.id, task]));
-        this.sequence = snapshot.sequence;
-        this.capacity = snapshot.capacity;
-        hydrating = false;
-        for (const event of buffered) {
-          if (event.kind === "progress") this.applyProgress(event.value);
-          else this.applyRemoved(event.value);
-        }
-        if (handoff?.handoffId && handoff.items.length > 0) {
-          const handoffId = handoff.handoffId;
+    initialize(service: TaskService, eventSource: TaskEventSource, handoff?: HandoffSource): Promise<void> {
+      const current = taskInitializations.get(this);
+      const consumeHandoff = async (owner: TaskInitialization): Promise<boolean> => {
+        const handoffId = handoff?.handoffId;
+        if (!handoffId || handoff.items.length === 0 || this.destroyed) return true;
+        try {
           const result = await service.create({ requestId: handoffId, drafts: [...handoff.items] });
-          if (!this.destroyed) {
+          if (!this.destroyed && taskInitializations.get(this) === owner) {
             this.mergeResponse(result.sequence, result.tasks);
             handoff.clearIfMatches(handoffId);
           }
+          return true;
+        } catch (error: unknown) {
+          if (!this.destroyed && taskInitializations.get(this) === owner) {
+            this.error = normalizeIpcError(error);
+            this.status = "failed";
+          }
+          return false;
         }
-        this.status = "ready";
-      } catch (error: unknown) {
-        hydrating = false;
-        if (!this.destroyed) { this.error = normalizeIpcError(error); this.status = "failed"; }
-      }
+      };
+      const reusable = current?.service === service
+        && current.eventSource === eventSource
+        && !this.destroyed
+        && (this.status === "subscribing" || this.status === "loading" || (this.status === "ready" && Boolean(this.unsubscribe)));
+      if (reusable) return current.promise.then(async () => { await consumeHandoff(current); });
+
+      const initialization = {} as TaskInitialization;
+      const promise = (async () => {
+        this.unsubscribe?.();
+        this.destroyed = false;
+        this.service = service;
+        this.status = "subscribing";
+        this.error = null;
+        this.eventError = null;
+        this.deletedTaskIds = {};
+        const buffered: BufferedEvent[] = [];
+        let hydrating = true;
+        const onProgress = (value: TaskProgressEvent) => hydrating ? buffered.push({ kind: "progress", value }) : this.applyProgress(value);
+        const onRemoved = (value: TaskRemovedEvent) => hydrating ? buffered.push({ kind: "removed", value }) : this.applyRemoved(value);
+        try {
+          const unsubscribe = await eventSource.subscribe(onProgress, onRemoved);
+          if (this.destroyed || taskInitializations.get(this) !== initialization) {
+            unsubscribe();
+            return;
+          }
+          this.unsubscribe = unsubscribe;
+        } catch (error: unknown) {
+          this.eventError = normalizeIpcError(error);
+        }
+        if (this.destroyed || taskInitializations.get(this) !== initialization) return;
+
+        this.status = "loading";
+        try {
+          const snapshot = await service.list();
+          if (this.destroyed || taskInitializations.get(this) !== initialization) return;
+          this.byId = Object.fromEntries(snapshot.tasks.map((task) => [task.id, task]));
+          this.sequence = snapshot.sequence;
+          this.capacity = snapshot.capacity;
+          hydrating = false;
+          for (const event of buffered) {
+            if (event.kind === "progress") this.applyProgress(event.value);
+            else this.applyRemoved(event.value);
+          }
+          if (!await consumeHandoff(initialization)) return;
+          this.status = "ready";
+        } catch (error: unknown) {
+          hydrating = false;
+          if (!this.destroyed && taskInitializations.get(this) === initialization) {
+            this.error = normalizeIpcError(error);
+            this.status = "failed";
+          }
+        }
+      })();
+      Object.assign(initialization, { service, eventSource, promise });
+      taskInitializations.set(this, initialization);
+      return promise;
     },
     applyProgress(event: TaskProgressEvent) {
       if (event.sequence <= this.sequence || this.destroyed) return;
@@ -169,6 +209,7 @@ export const useTaskManagementStore = defineStore("task-management", {
       this.destroyed = true;
       this.unsubscribe?.();
       this.unsubscribe = null;
+      taskInitializations.delete(this);
     },
   },
 });

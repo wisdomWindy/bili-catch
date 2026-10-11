@@ -9,6 +9,7 @@ const task = (status: DownloadTask["status"]): DownloadTask => ({
   fileName: "A very long task filename.mp4", outputDir: "Downloads", outputPath: status === "completed" ? "C:/Downloads/file.mp4" : null,
   bvid: "BV1", cid: 1, page: 1, partTitle: "P1", mode: "video-only", qualityId: "80", codec: "avc",
   audioFormat: null, audioBitrateId: null, status, controlRequest: "none", progressPercent: 45,
+  autoTranscribe: false, transcriptionPreset: null,
   bytesDownloaded: "1048576", totalBytes: "2097152", speedBytesPerSecond: "524288", etaSeconds: 65,
   automaticRetryCount: 0, nextRetryAt: null, error: null,
 });

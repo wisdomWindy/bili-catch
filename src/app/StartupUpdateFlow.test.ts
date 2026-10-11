@@ -17,7 +17,7 @@ import { createAppRouter } from "./router";
 
 function snapshot(autoCheckUpdates: boolean, revision = 0) {
   return {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     revision,
     values: {
       downloadDirectory: "D:/Media",
@@ -32,6 +32,17 @@ function snapshot(autoCheckUpdates: boolean, revision = 0) {
       completionSound: true,
       closeBehavior: "minimizeToTray" as const,
       autoCheckUpdates,
+      defaultAsrModel: "base" as const,
+      defaultTranscriptionLanguage: "auto" as const,
+      defaultTranscriptFormat: "srt" as const,
+      transcriptionTimestamps: true,
+      transcriptionPunctuation: true,
+      preferPlatformSubtitles: true,
+      autoTranscribeDownloads: false,
+      maxConcurrentTranscriptions: 1,
+      asrModelDirectory: "D:/AppData/BiliCatch/models/whisper",
+      asrGpuMode: "auto" as const,
+      asrModelSource: "",
     },
   };
 }

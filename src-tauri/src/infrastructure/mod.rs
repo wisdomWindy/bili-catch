@@ -5,4 +5,5 @@ pub mod bilibili;
 pub mod download;
 pub mod settings;
 pub mod tasks;
+pub mod transcription;
 pub mod video;

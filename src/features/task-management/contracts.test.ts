@@ -25,6 +25,8 @@ describe("task management contracts", () => {
       codec: "avc",
       audioFormat: "m4a",
       audioBitrateId: null,
+      autoTranscribe: false,
+      transcriptionPreset: null,
       status: "downloading",
       controlRequest: "none",
       progressPercent: 50,

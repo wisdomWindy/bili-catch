@@ -6,7 +6,7 @@
 .capacity-indicator { padding: 5px 9px; color: var(--color-warning); background: color-mix(in srgb, var(--color-warning) 10%, var(--color-surface)); border: 1px solid color-mix(in srgb, var(--color-warning) 35%, var(--color-border)); border-radius: 6px; font-size: 12px; }
 .capacity-indicator--full { color: var(--color-danger); }
 .task-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 44px; margin-bottom: 12px; border-bottom: 1px solid var(--color-border); }
-.task-tabs { display: flex; align-self: stretch; gap: 4px; overflow-x: auto; }
+.task-tabs { display: flex; min-width: 0; flex-wrap: wrap; align-self: stretch; gap: 4px; overflow: visible; }
 .task-tabs button { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 0 12px; color: var(--color-text-muted); background: transparent; border: 0; cursor: pointer; white-space: nowrap; }
 .task-tabs button span { min-width: 20px; padding: 1px 5px; background: var(--color-surface-muted); border-radius: 8px; font-size: 11px; }
 .task-tabs button[aria-selected="true"] { color: var(--color-text); font-weight: 600; }

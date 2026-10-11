@@ -155,6 +155,8 @@ fn task(format: AudioFormat, profile: &str, output_dir: PathBuf) -> DownloadTask
         codec: None,
         audio_format: Some(format),
         audio_bitrate_id: Some(profile.into()),
+        auto_transcribe: false,
+        transcription_preset: None,
         status: TaskStatus::Downloading,
         control_request: TaskControlRequest::None,
         progress_percent: 0,

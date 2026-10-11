@@ -26,6 +26,37 @@ pub trait TaskEventSink: Send + Sync {
     fn removed(&self, event: TaskRemovedEvent);
 }
 
+pub trait DownloadCompletionSink: Send + Sync {
+    fn completed(&self, task: &DownloadTask);
+}
+
+pub struct CompletionForwardingTaskEventSink {
+    inner: std::sync::Arc<dyn TaskEventSink>,
+    completion: std::sync::Arc<dyn DownloadCompletionSink>,
+}
+
+impl CompletionForwardingTaskEventSink {
+    pub fn new(
+        inner: std::sync::Arc<dyn TaskEventSink>,
+        completion: std::sync::Arc<dyn DownloadCompletionSink>,
+    ) -> Self {
+        Self { inner, completion }
+    }
+}
+
+impl TaskEventSink for CompletionForwardingTaskEventSink {
+    fn progress(&self, event: TaskProgressEvent) {
+        if event.task.status == crate::models::TaskStatus::Completed {
+            self.completion.completed(&event.task);
+        }
+        self.inner.progress(event);
+    }
+
+    fn removed(&self, event: TaskRemovedEvent) {
+        self.inner.removed(event);
+    }
+}
+
 pub trait TaskCleanerPort: Send + Sync {
     fn cleanup(&self, paths: &[String]) -> Result<(), AppError>;
 }

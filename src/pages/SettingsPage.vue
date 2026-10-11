@@ -6,6 +6,7 @@ import AboutSettings from "../features/settings/components/AboutSettings.vue";
 import AppearanceSettings from "../features/settings/components/AppearanceSettings.vue";
 import DownloadSettings from "../features/settings/components/DownloadSettings.vue";
 import SystemSettings from "../features/settings/components/SystemSettings.vue";
+import TranscriptionSettings from "../features/settings/components/TranscriptionSettings.vue";
 import type { SettingsPatch } from "../features/settings/contracts";
 import { useDirectoryPicker, useReleaseActions, useSettingsEffectSink, useSettingsService } from "../features/settings/injection";
 import { useSettingsStore } from "../features/settings/store";
@@ -18,7 +19,7 @@ const service = useSettingsService();
 const effects = useSettingsEffectSink();
 const picker = useDirectoryPicker();
 const release = useReleaseActions();
-const picking = reactive({ downloadDirectory: false, temporaryDirectory: false });
+const picking = reactive({ downloadDirectory: false, temporaryDirectory: false, asrModelDirectory: false });
 const updateStatus = ref<"idle" | "checking" | "installing" | "latest" | "available" | "error">("idle");
 const updateMessage = ref<string | null>(null);
 const actionError = ref<string | null>(null);
@@ -26,7 +27,7 @@ const actionError = ref<string | null>(null);
 function preview(patch: SettingsPatch) { store.preview(patch, effects); }
 function commit(patch: SettingsPatch) { void store.commit(patch, service, effects); }
 
-async function selectDirectory(field: "downloadDirectory" | "temporaryDirectory", button: HTMLButtonElement) {
+async function selectDirectory(field: "downloadDirectory" | "temporaryDirectory" | "asrModelDirectory", button: HTMLButtonElement) {
   if (!store.values) return;
   picking[field] = true;
   actionError.value = null;
@@ -35,7 +36,9 @@ async function selectDirectory(field: "downloadDirectory" | "temporaryDirectory"
     if (selected !== null) {
       const patch: SettingsPatch = field === "downloadDirectory"
         ? { field: "downloadDirectory", value: selected }
-        : { field: "temporaryDirectory", value: selected };
+        : field === "temporaryDirectory"
+          ? { field: "temporaryDirectory", value: selected }
+          : { field: "asrModelDirectory", value: selected };
       await store.commit(patch, service, effects);
     }
   } catch {
@@ -100,10 +103,11 @@ onBeforeUnmount(() => window.removeEventListener("bilicatch:update-check", handl
       <button data-testid="settings-retry" type="button" class="command-button" @click="store.retryInitialize(service, effects)">{{ t("actions.retry") }}</button>
     </div>
     <div v-else-if="store.status !== 'ready' || !store.values" class="settings-skeleton" aria-busy="true" :aria-label="t('settings.loading')">
-      <div v-for="index in 12" :key="index" class="setting-skeleton"><span /><span /><span /></div>
+      <div v-for="index in 23" :key="index" class="setting-skeleton"><span /><span /><span /></div>
     </div>
     <div v-else class="settings-form">
       <DownloadSettings :values="store.values" :field-states="store.fieldStates" :picking="picking" @preview="preview" @commit="commit" @pick="selectDirectory" />
+      <TranscriptionSettings :values="store.values" :field-states="store.fieldStates" :picking="picking.asrModelDirectory" @preview="preview" @commit="commit" @pick="selectDirectory" />
       <AppearanceSettings :values="store.values" :field-states="store.fieldStates" @commit="commit" />
       <SystemSettings :values="store.values" :field-states="store.fieldStates" @commit="commit" />
       <AboutSettings :version="appStore.appInfo?.version ?? null" :update-status="updateStatus" :update-message="updateMessage" @check="checkForUpdates" @install="installUpdate" @licenses="openLicenses" />

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { Pause, Trash2 } from "@lucide/vue";
 import { useI18n } from "vue-i18n";
-import type { TaskFilter } from "../store";
+import type { CombinedTaskFilter } from "../projection";
 
-defineProps<{ filter: TaskFilter; counts: Record<TaskFilter, number>; canPause: boolean; canClear: boolean; busy: boolean }>();
-const emit = defineEmits<{ filter: [value: TaskFilter]; pauseAll: []; clearCompleted: [] }>();
+defineProps<{ filter: CombinedTaskFilter; counts: Record<CombinedTaskFilter, number>; canPause: boolean; canClear: boolean; busy: boolean }>();
+const emit = defineEmits<{ filter: [value: CombinedTaskFilter]; pauseAll: []; clearCompleted: [] }>();
 const { t } = useI18n();
-const filters: TaskFilter[] = ["all", "active", "completed", "failed"];
+const filters: CombinedTaskFilter[] = ["all", "download", "transcription", "active", "completed", "failed"];
 </script>
 
 <template>
