@@ -81,6 +81,7 @@ jobs:
             exit 1
           fi
           version="${RELEASE_TAG#v}"
+          target_commitish="$(git rev-list -n 1 "$RELEASE_TAG")"
           release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           cat > "$RUNNER_TEMP/release-body.md" <<BODY
           Changes:
@@ -123,7 +124,7 @@ jobs:
           if [[ -z "$release_id" ]]; then
             release_id="$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
               --raw-field tag_name="$RELEASE_TAG" \
-              --raw-field target_commitish="$RELEASE_TAG" \
+              --raw-field target_commitish="$target_commitish" \
               --raw-field name="BiliCatch $RELEASE_TAG" \
               --raw-field body="$(<"$RUNNER_TEMP/release-body.md")" \
               --field draft=true \
@@ -665,9 +666,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.prepare-release.outputs.release_id }}
         run: |
+          target_commitish="$(git rev-list -n 1 "$RELEASE_TAG")"
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             --raw-field tag_name="$RELEASE_TAG" \
-            --raw-field target_commitish="$RELEASE_TAG" \
+            --raw-field target_commitish="$target_commitish" \
             --field draft=false \
             --field prerelease=false \
             --silent
