@@ -76,6 +76,24 @@ pub fn official_model_manifest() -> Vec<ModelManifestEntry> {
             BASE,
             "Best accuracy with high memory and CPU requirements",
         ),
+        ModelManifestEntry {
+            id: AsrModelId::FireRedAsr2,
+            display_name: "FireRedASR2 CTC (INT8)".into(),
+            file_name: "fire-red-asr2-ctc-int8.onnx".into(),
+            size_bytes: 775_861_420,
+            sha256: "ca3dbabd82170110cc0b343c2890866d449984bc9cd92b9a18371ff80a81bb99"
+                .into(),
+            official_url: "https://huggingface.co/csukuangfj2/sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25/resolve/main/model.int8.onnx".into(),
+            recommended_for: "High-accuracy Chinese, English, dialect, and singing transcription"
+                .into(),
+            capabilities: vec![
+                "zh-en".into(),
+                "dialects".into(),
+                "singing".into(),
+                "timestamps".into(),
+                "cpu".into(),
+            ],
+        },
     ]
 }
 
@@ -449,8 +467,13 @@ impl FileModelRepository {
         if source.scheme() != "https" || source.query().is_some() || source.fragment().is_some() {
             return Err(download_error("MODEL_SOURCE_INVALID"));
         }
+        let remote_file_name = if model_id == AsrModelId::FireRedAsr2 {
+            "model.int8.onnx"
+        } else {
+            &entry.file_name
+        };
         source
-            .join(&entry.file_name)
+            .join(remote_file_name)
             .map_err(|_| download_error("MODEL_SOURCE_INVALID"))
     }
 
@@ -464,9 +487,12 @@ impl FileModelRepository {
             return Ok(vec![primary]);
         }
         let entry = self.entry(model_id)?;
-        let mirror = Url::parse(DEFAULT_MODEL_MIRROR)
-            .and_then(|base| base.join(&entry.file_name))
-            .map_err(|_| download_error("MODEL_URL_INVALID"))?;
+        let mirror = if model_id == AsrModelId::FireRedAsr2 {
+            Url::parse("https://hf-mirror.com/csukuangfj2/sherpa-onnx-fire-red-asr2-ctc-zh_en-int8-2026-02-25/resolve/main/model.int8.onnx")
+        } else {
+            Url::parse(DEFAULT_MODEL_MIRROR).and_then(|base| base.join(&entry.file_name))
+        }
+        .map_err(|_| download_error("MODEL_URL_INVALID"))?;
         Ok(vec![primary, mirror])
     }
 
@@ -603,9 +629,30 @@ mod tests {
     };
 
     use super::{
-        FileModelRepository, ModelDownloadCancellation, ModelManifestEntry, ReqwestModelDownloader,
+        official_model_manifest, FileModelRepository, ModelDownloadCancellation,
+        ModelManifestEntry, ReqwestModelDownloader,
     };
     use crate::models::AsrModelId;
+
+    #[test]
+    fn official_manifest_includes_the_verified_fire_red_asr2_int8_model() {
+        let entry = official_model_manifest()
+            .into_iter()
+            .find(|entry| entry.display_name == "FireRedASR2 CTC (INT8)")
+            .expect("FireRedASR2 manifest entry");
+
+        assert_eq!(entry.file_name, "fire-red-asr2-ctc-int8.onnx");
+        assert_eq!(entry.size_bytes, 775_861_420);
+        assert_eq!(
+            entry.sha256,
+            "ca3dbabd82170110cc0b343c2890866d449984bc9cd92b9a18371ff80a81bb99"
+        );
+        assert!(entry.official_url.starts_with("https://huggingface.co/"));
+        assert_eq!(
+            entry.capabilities,
+            vec!["zh-en", "dialects", "singing", "timestamps", "cpu"]
+        );
+    }
 
     #[tokio::test]
     async fn reqwest_downloader_streams_a_response_through_verified_publish() {

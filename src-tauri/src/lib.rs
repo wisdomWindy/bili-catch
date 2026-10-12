@@ -20,9 +20,9 @@ const BUNDLED_FFMPEG_NAMES: &[&str] = &["ffmpeg"];
 const BUNDLED_WHISPER_NAMES: &[&str] =
     &["whisper-cli.exe", "whisper-cli-x86_64-pc-windows-msvc.exe"];
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
-const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-x86_64-apple-darwin"];
+const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli", "whisper-cli-x86_64-apple-darwin"];
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
-const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-aarch64-apple-darwin"];
+const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli", "whisper-cli-aarch64-apple-darwin"];
 #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
 const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-x86_64-unknown-linux-gnu"];
 #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
@@ -35,6 +35,30 @@ const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli-aarch64-unknown-linux-gnu"
     all(target_os = "linux", target_arch = "aarch64")
 )))]
 const BUNDLED_WHISPER_NAMES: &[&str] = &["whisper-cli"];
+
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+const BUNDLED_SHERPA_NAMES: &[&str] = &[
+    "sherpa-onnx-offline.exe",
+    "sherpa-onnx-offline-x86_64-pc-windows-msvc.exe",
+];
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+const BUNDLED_SHERPA_NAMES: &[&str] = &[
+    "sherpa-onnx-offline",
+    "sherpa-onnx-offline-x86_64-apple-darwin",
+];
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const BUNDLED_SHERPA_NAMES: &[&str] = &[
+    "sherpa-onnx-offline",
+    "sherpa-onnx-offline-aarch64-apple-darwin",
+];
+#[cfg(not(any(
+    all(target_os = "windows", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "x86_64"),
+    all(target_os = "macos", target_arch = "aarch64")
+)))]
+const BUNDLED_SHERPA_NAMES: &[&str] = &["sherpa-onnx-offline"];
+
+const BUNDLED_FIRE_RED_TOKENS_NAMES: &[&str] = &["fire-red-asr2-tokens.txt"];
 
 fn resolve_ffmpeg_sidecar(
     resource_dir: &std::path::Path,
@@ -152,6 +176,13 @@ pub fn run() {
                 resolve_ffmpeg_sidecar(&resource_dir, &install_directory, BUNDLED_FFMPEG_NAMES);
             let whisper_path =
                 resolve_ffmpeg_sidecar(&resource_dir, &install_directory, BUNDLED_WHISPER_NAMES);
+            let sherpa_path =
+                resolve_ffmpeg_sidecar(&resource_dir, &install_directory, BUNDLED_SHERPA_NAMES);
+            let fire_red_tokens_path = resolve_ffmpeg_sidecar(
+                &resource_dir,
+                &install_directory,
+                BUNDLED_FIRE_RED_TOKENS_NAMES,
+            );
             let defaults = services::settings::SettingsDefaults::from_application_paths(
                 &install_directory,
                 &app_data_directory,
@@ -290,8 +321,12 @@ pub fn run() {
                     transcription_manager,
                     settings_manager.clone(),
                     task_manager.clone(),
-                    ffmpeg_path,
-                    whisper_path,
+                    infrastructure::transcription::runtime::TranscriptionSidecarPaths {
+                        ffmpeg: ffmpeg_path,
+                        whisper: whisper_path,
+                        sherpa: sherpa_path,
+                        fire_red_tokens: fire_red_tokens_path,
+                    },
                     transcription_event_sink,
                     Arc::new(
                         infrastructure::transcription::platform_subtitle::BilibiliSubtitleProvider::new(

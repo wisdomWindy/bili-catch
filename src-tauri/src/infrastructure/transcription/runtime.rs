@@ -14,6 +14,7 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use crate::{
     infrastructure::transcription::{
         ffmpeg_preprocessor::{FfmpegPreprocessRequest, FfmpegTranscriptionPreprocessor},
+        fire_red_sidecar::{FireRedSidecarTranscriber, FIRE_RED_MAX_CHUNK_SECONDS},
         model_repository::{
             FileModelRepository, ModelDownloadCancellation, ReqwestModelDownloader,
         },
@@ -22,9 +23,9 @@ use crate::{
     models::{
         AppError, AppErrorCode, AsrModel, AsrModelId, AsrModelListSnapshot,
         CreateTranscribeTaskRequest, CreateTranscribeTaskResult, ExportTranscriptRequest,
-        ExportTranscriptResult, MediaSourceInfo, ModelDownloadState, TranscribeTask,
+        ExportTranscriptResult, GpuMode, MediaSourceInfo, ModelDownloadState, TranscribeTask,
         TranscribeTaskAction, TranscribeTaskStatus, TranscriptFormat, TranscriptResult,
-        TranscriptionOptions, TranscriptionProgress, TranscriptionSource,
+        TranscriptionLanguage, TranscriptionOptions, TranscriptionProgress, TranscriptionSource,
     },
     services::{
         audio::ProcessControl,
@@ -133,12 +134,19 @@ impl DownloadCompletionSink for LateBoundTranscriptionCompletionHook {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct TranscriptionSidecarPaths {
+    pub ffmpeg: PathBuf,
+    pub whisper: PathBuf,
+    pub sherpa: PathBuf,
+    pub fire_red_tokens: PathBuf,
+}
+
 pub struct TranscriptionRuntime {
     manager: Arc<TranscriptionManager>,
     settings: Arc<SettingsManager>,
     downloads: Arc<TaskManager>,
-    ffmpeg_path: PathBuf,
-    whisper_path: PathBuf,
+    sidecars: TranscriptionSidecarPaths,
     queue: Mutex<FairPendingQueue>,
     force_runs: Mutex<HashMap<String, bool>>,
     controls: Mutex<HashMap<String, ProcessControl>>,
@@ -155,8 +163,7 @@ impl TranscriptionRuntime {
         manager: Arc<TranscriptionManager>,
         settings: Arc<SettingsManager>,
         downloads: Arc<TaskManager>,
-        ffmpeg_path: PathBuf,
-        whisper_path: PathBuf,
+        sidecars: TranscriptionSidecarPaths,
         model_events: Arc<dyn ModelEventSink>,
         subtitles: Arc<dyn SubtitleProvider>,
     ) -> Self {
@@ -164,8 +171,7 @@ impl TranscriptionRuntime {
             manager,
             settings,
             downloads,
-            ffmpeg_path,
-            whisper_path,
+            sidecars,
             queue: Mutex::new(FairPendingQueue::default()),
             force_runs: Mutex::new(HashMap::new()),
             controls: Mutex::new(HashMap::new()),
@@ -187,7 +193,7 @@ impl TranscriptionRuntime {
         source: &TranscriptionSource,
     ) -> Result<MediaSourceInfo, AppError> {
         let path = self.resolve_source_path(source)?;
-        FfmpegTranscriptionPreprocessor::new(&self.ffmpeg_path)?
+        FfmpegTranscriptionPreprocessor::new(&self.sidecars.ffmpeg)?
             .inspect(&path, ProcessControl::new())
             .await
     }
@@ -196,15 +202,20 @@ impl TranscriptionRuntime {
         &self,
         request: CreateTranscribeTaskRequest,
     ) -> Result<CreateTranscribeTaskResult, AppError> {
+        validate_model_options(
+            request.options.model_id,
+            request.options.language,
+            request.options.gpu_mode,
+        )?;
         let source_path = self.resolve_source_path(&request.source)?;
-        let source_info = FfmpegTranscriptionPreprocessor::new(&self.ffmpeg_path)?
+        let source_info = FfmpegTranscriptionPreprocessor::new(&self.sidecars.ffmpeg)?
             .inspect(&source_path, ProcessControl::new())
             .await?;
         let settings = self.settings.snapshot().values;
         let repository = FileModelRepository::new(&settings.asr_model_directory);
         repository.verify(request.options.model_id, settings.default_asr_model)?;
         if request.options.gpu_mode == crate::models::GpuMode::Enabled
-            && !self.whisper_path.is_file()
+            && !self.sidecars.whisper.is_file()
         {
             return Err(runtime_error(
                 AppErrorCode::E014,
@@ -678,21 +689,33 @@ impl TranscriptionRuntime {
                 }
             }
         }
-        let preprocessor = FfmpegTranscriptionPreprocessor::new(&self.ffmpeg_path)?;
-        let parts = preprocessor
-            .preprocess(
-                FfmpegPreprocessRequest {
-                    task_id: task_id.into(),
-                    run_revision: task.revision,
-                    source_path,
-                    duration_seconds: task.source_info.duration_seconds,
-                    temporary_directory: PathBuf::from(&settings.temporary_directory)
-                        .join("bilicatch-transcribe"),
-                    silence_points: Vec::new(),
-                },
-                control.clone(),
-            )
-            .await?;
+        let preprocessor = FfmpegTranscriptionPreprocessor::new(&self.sidecars.ffmpeg)?;
+        let preprocess_request = FfmpegPreprocessRequest {
+            task_id: task_id.into(),
+            run_revision: task.revision,
+            source_path,
+            duration_seconds: task.source_info.duration_seconds,
+            temporary_directory: PathBuf::from(&settings.temporary_directory)
+                .join("bilicatch-transcribe"),
+            silence_points: Vec::new(),
+        };
+        let engine = transcription_engine(task.options.model_id);
+        let parts = match engine {
+            TranscriptionEngine::Whisper => {
+                preprocessor
+                    .preprocess(preprocess_request, control.clone())
+                    .await?
+            }
+            TranscriptionEngine::FireRed => {
+                preprocessor
+                    .preprocess_with_chunk_limit(
+                        preprocess_request,
+                        control.clone(),
+                        FIRE_RED_MAX_CHUNK_SECONDS,
+                    )
+                    .await?
+            }
+        };
         self.manager
             .transition(task_id, TranscribeTaskStatus::LoadingModel, None)?;
         let model = FileModelRepository::new(&settings.asr_model_directory)
@@ -704,7 +727,15 @@ impl TranscriptionRuntime {
                 "The model is unavailable",
             )
         })?);
-        let transcriber = WhisperSidecarTranscriber::new(&self.whisper_path)?;
+        let transcriber: Box<dyn Transcriber> = match engine {
+            TranscriptionEngine::Whisper => {
+                Box::new(WhisperSidecarTranscriber::new(&self.sidecars.whisper)?)
+            }
+            TranscriptionEngine::FireRed => Box::new(FireRedSidecarTranscriber::new(
+                &self.sidecars.sherpa,
+                &self.sidecars.fire_red_tokens,
+            )?),
+        };
         self.manager
             .transition(task_id, TranscribeTaskStatus::Transcribing, None)?;
         let mut chunks = Vec::new();
@@ -907,6 +938,51 @@ fn now_rfc3339() -> Result<String, AppError> {
         .map_err(|_| internal("SYSTEM_CLOCK_UNAVAILABLE"))
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TranscriptionEngine {
+    Whisper,
+    FireRed,
+}
+
+fn transcription_engine(model_id: AsrModelId) -> TranscriptionEngine {
+    match model_id {
+        AsrModelId::FireRedAsr2 => TranscriptionEngine::FireRed,
+        AsrModelId::Tiny
+        | AsrModelId::Base
+        | AsrModelId::Small
+        | AsrModelId::Medium
+        | AsrModelId::LargeV3 => TranscriptionEngine::Whisper,
+    }
+}
+
+fn validate_model_options(
+    model_id: AsrModelId,
+    language: TranscriptionLanguage,
+    gpu_mode: GpuMode,
+) -> Result<(), AppError> {
+    if model_id != AsrModelId::FireRedAsr2 {
+        return Ok(());
+    }
+    if matches!(
+        language,
+        TranscriptionLanguage::Ja | TranscriptionLanguage::Ko
+    ) {
+        return Err(runtime_error(
+            AppErrorCode::E014,
+            "MODEL_LANGUAGE_UNSUPPORTED",
+            "FireRedASR2 supports Chinese and English transcription",
+        ));
+    }
+    if gpu_mode == GpuMode::Enabled {
+        return Err(runtime_error(
+            AppErrorCode::E014,
+            "GPU_UNAVAILABLE",
+            "FireRedASR2 currently uses the bundled CPU runtime",
+        ));
+    }
+    Ok(())
+}
+
 fn internal(details: &str) -> AppError {
     runtime_error(
         AppErrorCode::Internal,
@@ -920,5 +996,45 @@ fn runtime_error(code: AppErrorCode, details: &str, message: &str) -> AppError {
         code,
         message: message.into(),
         details: Some(details.into()),
+    }
+}
+
+#[cfg(test)]
+mod engine_tests {
+    use super::{transcription_engine, validate_model_options, TranscriptionEngine};
+    use crate::models::{AsrModelId, GpuMode, TranscriptionLanguage};
+
+    #[test]
+    fn fire_red_model_routes_to_sherpa_and_whisper_models_stay_on_whisper() {
+        assert_eq!(
+            transcription_engine(AsrModelId::FireRedAsr2),
+            TranscriptionEngine::FireRed
+        );
+        assert_eq!(
+            transcription_engine(AsrModelId::Base),
+            TranscriptionEngine::Whisper
+        );
+    }
+
+    #[test]
+    fn fire_red_rejects_unsupported_languages_and_forced_gpu_before_execution() {
+        let language_error = validate_model_options(
+            AsrModelId::FireRedAsr2,
+            TranscriptionLanguage::Ja,
+            GpuMode::Auto,
+        )
+        .unwrap_err();
+        assert_eq!(
+            language_error.details.as_deref(),
+            Some("MODEL_LANGUAGE_UNSUPPORTED")
+        );
+
+        let gpu_error = validate_model_options(
+            AsrModelId::FireRedAsr2,
+            TranscriptionLanguage::Zh,
+            GpuMode::Enabled,
+        )
+        .unwrap_err();
+        assert_eq!(gpu_error.details.as_deref(), Some("GPU_UNAVAILABLE"));
     }
 }

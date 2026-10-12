@@ -10,6 +10,7 @@ pub enum AsrModelId {
     Small,
     Medium,
     LargeV3,
+    FireRedAsr2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -301,4 +302,20 @@ pub struct ExportTranscriptRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ExportTranscriptResult {
     pub output_path: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AsrModelId;
+
+    #[test]
+    fn fire_red_asr2_uses_the_frontend_model_id() {
+        let model: AsrModelId =
+            serde_json::from_str("\"fire-red-asr2\"").expect("FireRedASR2 model id");
+
+        assert_eq!(
+            serde_json::to_string(&model).expect("serialized model id"),
+            "\"fire-red-asr2\""
+        );
+    }
 }

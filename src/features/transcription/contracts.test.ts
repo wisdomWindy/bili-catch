@@ -9,7 +9,14 @@ import {
 
 describe("transcription contracts", () => {
   it("exposes the approved model, format, and task status domains", () => {
-    expect(ASR_MODEL_IDS).toEqual(["tiny", "base", "small", "medium", "large-v3"]);
+    expect(ASR_MODEL_IDS).toEqual([
+      "tiny",
+      "base",
+      "small",
+      "medium",
+      "large-v3",
+      "fire-red-asr2",
+    ]);
     expect(TRANSCRIPT_FORMATS).toEqual(["txt", "srt", "vtt", "json", "markdown"]);
     expect(TRANSCRIBE_TASK_STATUSES).toEqual([
       "pending",

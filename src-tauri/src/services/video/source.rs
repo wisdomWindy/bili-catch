@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 
 use crate::{
+    infrastructure::bilibili::validate_media_url,
     models::{AppError, AppErrorCode, DownloadMode, VideoCodec},
     services::download::DownloadProgress,
     services::download::{validate_media_source_kind, MediaSourceCandidate},
@@ -84,5 +85,19 @@ pub fn select_video_source(
             )
         })?;
     validate_media_source_kind(&candidate.source)?;
-    Ok(candidate.source.clone())
+    let mut source = candidate.source.clone();
+    let trusted_urls = std::iter::once(&source.primary_url)
+        .chain(source.backup_urls.iter())
+        .filter(|url| validate_media_url(url).is_ok())
+        .cloned()
+        .collect::<Vec<_>>();
+    let (primary_url, backup_urls) = trusted_urls.split_first().ok_or_else(|| {
+        AppError::new(
+            AppErrorCode::E004,
+            "The requested video source is unavailable",
+        )
+    })?;
+    source.primary_url = primary_url.clone();
+    source.backup_urls = backup_urls.to_vec();
+    Ok(source)
 }

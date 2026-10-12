@@ -1,0 +1,38 @@
+{
+  "request_id": "bilicatch-collapsible-model-groups-and-media-fallback-20261012",
+  "stage": "complete",
+  "status": "complete",
+  "speed_profile": {
+    "level": "S2 scoped",
+    "reason": "跨越一个 Vue 交互组件和共享媒体下载适配器，但不改变公共 API 或持久化结构。",
+    "context_budget": "focused",
+    "artifact_density": "compact"
+  },
+  "artifacts": {
+    "request": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/request.md",
+    "prd_snapshot": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/artifacts/prd-snapshot.md",
+    "code_context": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/artifacts/code-context.md",
+    "page_design": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/design/page-design.md",
+    "spec": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/verification/verification.md",
+    "review": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/review/review.md",
+    "release_readiness": "docs/requests/bilicatch-collapsible-model-groups-and-media-fallback-20261012/release/release-readiness.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "module_flow": null,
+  "architecture_design_required": false,
+  "loop": {
+    "iteration": 7,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}

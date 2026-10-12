@@ -1,0 +1,36 @@
+{
+  "request_id": "bilicatch-model-series-groups-20261012",
+  "stage": "complete",
+  "status": "complete",
+  "speed_profile": {
+    "level": "S1 local",
+    "reason": "One existing modal component with localized grouping labels and scoped tests; no API or state contract change.",
+    "context_budget": "narrow",
+    "artifact_density": "compact"
+  },
+  "artifacts": {
+    "request": "docs/requests/bilicatch-model-series-groups-20261012/request.md",
+    "prd_snapshot": "docs/requests/bilicatch-model-series-groups-20261012/artifacts/prd-snapshot.md",
+    "page_design": "docs/requests/bilicatch-model-series-groups-20261012/design/page-design.md",
+    "spec": "docs/requests/bilicatch-model-series-groups-20261012/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-model-series-groups-20261012/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-model-series-groups-20261012/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-model-series-groups-20261012/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-model-series-groups-20261012/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-model-series-groups-20261012/verification/verification.md",
+    "review": "docs/requests/bilicatch-model-series-groups-20261012/review/review.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "module_flow": null,
+  "architecture_design_required": false,
+  "loop": {
+    "iteration": 7,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}

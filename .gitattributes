@@ -1,1 +1,2 @@
 src-tauri/binaries/ffmpeg-*-pc-windows-msvc.exe filter=lfs diff=lfs merge=lfs -text
+src-tauri/binaries/sherpa-onnx-offline-*-pc-windows-msvc.exe filter=lfs diff=lfs merge=lfs -text

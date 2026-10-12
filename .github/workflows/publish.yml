@@ -84,8 +84,10 @@ jobs:
           release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           cat > "$RUNNER_TEMP/release-body.md" <<BODY
           Changes:
-          - Adds local audio and video transcription powered by whisper.cpp.
+          - Adds local audio and video transcription powered by whisper.cpp and FireRedASR2.
           - Adds transcription model management, editable results, and TXT/SRT export.
+          - Groups transcription models into collapsible series.
+          - Falls back through every available media CDN URL before reporting a download failure.
           - Improves task-list navigation and Simplified Chinese transcription output.
 
           Downloads:
@@ -208,6 +210,39 @@ jobs:
           $actualHash = (Get-FileHash -LiteralPath $ffmpegPath -Algorithm SHA256).Hash
           if ($actualHash -ne $expectedHash) {
             throw "FFmpeg sidecar SHA-256 mismatch."
+          }
+
+      - name: Verify Windows sherpa-onnx sidecar and FireRedASR2 tokens
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          $binaryDirectory = Join-Path $env:GITHUB_WORKSPACE "src-tauri\binaries"
+          $sidecar = Join-Path $binaryDirectory "sherpa-onnx-offline-x86_64-pc-windows-msvc.exe"
+          $tokens = Join-Path $binaryDirectory "fire-red-asr2-tokens.txt"
+
+          if (-not (Test-Path -LiteralPath $sidecar -PathType Leaf)) {
+            throw "sherpa-onnx sidecar is missing after checkout."
+          }
+          if ((Get-Item -LiteralPath $sidecar).Length -ne 18750976) {
+            throw "sherpa-onnx sidecar size mismatch."
+          }
+          if ((Get-FileHash -LiteralPath $sidecar -Algorithm SHA256).Hash -ne "DE366889E8CF3CDE93121F2D11296749769C8624995030A44B86316F8B0C6779") {
+            throw "sherpa-onnx sidecar SHA-256 mismatch."
+          }
+
+          if (-not (Test-Path -LiteralPath $tokens -PathType Leaf)) {
+            throw "FireRedASR2 token table is missing after checkout."
+          }
+          if ((Get-Item -LiteralPath $tokens).Length -ne 79172) {
+            throw "FireRedASR2 token table size mismatch."
+          }
+          if ((Get-FileHash -LiteralPath $tokens -Algorithm SHA256).Hash -ne "1BC613DE2112D257E61A349C3E72D1B1A9CF19C33D3CA954197AD2171E5EA07B") {
+            throw "FireRedASR2 token table SHA-256 mismatch."
+          }
+
+          & $sidecar --help *> $null
+          if ($LASTEXITCODE -ne 0) {
+            throw "sherpa-onnx sidecar smoke test failed."
           }
 
       - name: Build macOS FFmpeg sidecar
@@ -362,6 +397,58 @@ jobs:
           fi
           "$sidecar" --help >/dev/null
 
+      - name: Install macOS sherpa-onnx sidecar
+        if: matrix.platform == 'macos'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          SHERPA_VERSION: 1.13.8
+        run: |
+          set -euo pipefail
+
+          case "$TARGET" in
+            aarch64-apple-darwin)
+              sherpa_arch="arm64"
+              expected_arch="arm64"
+              archive_sha256="1038a379fff5365b684e05cbbb9ab3577c1a2f6b1736a4d53a6746860d7eddd4"
+              ;;
+            x86_64-apple-darwin)
+              sherpa_arch="x64"
+              expected_arch="x86_64"
+              archive_sha256="3a6d8782d43de418a22404dd0032ec5ca2e3d049618b43a32100de25c09c392c"
+              ;;
+            *) echo "Unsupported macOS target: $TARGET" >&2; exit 1 ;;
+          esac
+
+          archive_name="sherpa-onnx-v$SHERPA_VERSION-osx-$sherpa_arch-static-no-tts.tar.bz2"
+          build_root="$(mktemp -d "$RUNNER_TEMP/bilicatch-sherpa.XXXXXX")"
+          archive="$build_root/$archive_name"
+          curl --fail --location --retry 3 --output "$archive" \
+            "https://github.com/k2-fsa/sherpa-onnx/releases/download/v$SHERPA_VERSION/$archive_name"
+          echo "$archive_sha256  $archive" | shasum -a 256 --check
+          tar -xjf "$archive" -C "$build_root"
+
+          source_sidecar="$(find "$build_root" -type f -path '*/bin/sherpa-onnx-offline' -print -quit)"
+          if [[ -z "$source_sidecar" ]]; then
+            echo "sherpa-onnx-offline was not found in $archive_name." >&2
+            exit 1
+          fi
+          sidecar="$GITHUB_WORKSPACE/src-tauri/binaries/sherpa-onnx-offline-$TARGET"
+          install -m 755 "$source_sidecar" "$sidecar"
+
+          actual_archs="$(lipo -archs "$sidecar")"
+          if [[ "$actual_archs" != "$expected_arch" ]]; then
+            echo "sherpa-onnx architecture mismatch: expected $expected_arch, got $actual_archs" >&2
+            exit 1
+          fi
+          unexpected_dependencies="$(otool -L "$sidecar" | awk 'NR > 1 { print $1 }' | grep -Ev '^(/usr/lib/|/System/Library/)' || true)"
+          if [[ -n "$unexpected_dependencies" ]]; then
+            echo "sherpa-onnx has non-system dynamic dependencies:" >&2
+            echo "$unexpected_dependencies" >&2
+            exit 1
+          fi
+          "$sidecar" --help >/dev/null
+
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -423,12 +510,17 @@ jobs:
           app_path="$(find "$mount_dir" -maxdepth 1 -type d -name '*.app' -print -quit)"
           bundled_sidecar="$app_path/Contents/MacOS/ffmpeg"
           bundled_whisper="$app_path/Contents/MacOS/whisper-cli"
+          bundled_sherpa="$app_path/Contents/MacOS/sherpa-onnx-offline"
           if [[ -z "$app_path" || ! -x "$bundled_sidecar" ]]; then
             echo "The packaged FFmpeg sidecar is missing or not executable." >&2
             exit 1
           fi
           if [[ ! -x "$bundled_whisper" ]]; then
             echo "The packaged whisper-cli sidecar is missing or not executable." >&2
+            exit 1
+          fi
+          if [[ ! -x "$bundled_sherpa" ]]; then
+            echo "The packaged sherpa-onnx sidecar is missing or not executable." >&2
             exit 1
           fi
 
@@ -447,9 +539,15 @@ jobs:
             echo "Packaged whisper-cli architecture mismatch: expected $expected_arch, got $whisper_archs" >&2
             exit 1
           fi
+          sherpa_archs="$(lipo -archs "$bundled_sherpa")"
+          if [[ "$sherpa_archs" != "$expected_arch" ]]; then
+            echo "Packaged sherpa-onnx architecture mismatch: expected $expected_arch, got $sherpa_archs" >&2
+            exit 1
+          fi
           vtool -show-build "$bundled_sidecar" | grep -Eq 'minos[[:space:]]+11\.0'
           vtool -show-build "$bundled_whisper" | grep -Eq 'minos[[:space:]]+11\.0'
           "$bundled_whisper" --help >/dev/null
+          "$bundled_sherpa" --help >/dev/null
 
           smoke_dir="$(mktemp -d "$RUNNER_TEMP/bilicatch-packaged-smoke.XXXXXX")"
           "$bundled_sidecar" -hide_banner -loglevel error -f lavfi -i "testsrc=size=64x64:rate=10:duration=0.3" \

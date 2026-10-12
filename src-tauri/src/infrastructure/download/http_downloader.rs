@@ -348,6 +348,13 @@ fn discard_download(paths: &MediaWorkspacePaths) {
     }
 }
 
+fn is_source_address_error(error: &AppError) -> bool {
+    matches!(
+        error.code,
+        AppErrorCode::E004 | AppErrorCode::E005 | AppErrorCode::E006 | AppErrorCode::E009
+    )
+}
+
 #[async_trait]
 impl ByteDownloaderPort for HttpByteDownloader {
     async fn download(
@@ -371,17 +378,17 @@ impl ByteDownloaderPort for HttpByteDownloader {
         let urls = std::iter::once(&request.source.primary_url)
             .chain(request.source.backup_urls.iter())
             .collect::<Vec<_>>();
-        let mut last_network_error = None;
+        let mut last_source_error = None;
         for url in urls {
             match self
                 .download_from_url(url, &request, &control, progress, &identity)
                 .await
             {
-                Err(error) if error.code == AppErrorCode::E009 => last_network_error = Some(error),
+                Err(error) if is_source_address_error(&error) => last_source_error = Some(error),
                 result => return result,
             }
         }
-        Err(last_network_error.unwrap_or_else(|| {
+        Err(last_source_error.unwrap_or_else(|| {
             AppError::new(AppErrorCode::E004, "The media source has no usable URL")
         }))
     }
@@ -585,6 +592,59 @@ mod tests {
                 fs::read(&request.workspace.source_path).unwrap(),
                 b"hello world"
             );
+            assert_eq!(requests.lock().unwrap().len(), 2);
+        });
+    }
+
+    #[test]
+    fn retries_a_backup_url_after_the_primary_source_is_not_found() {
+        tauri::async_runtime::block_on(async {
+            let (url, requests) = serve(vec![
+                "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 200 OK\r\nContent-Length: 11\r\nConnection: close\r\n\r\nhello world",
+            ]);
+            let (_temp, _output, mut request) = setup(url.clone());
+            request.source.backup_urls = vec![format!("{url}?backup=1")];
+
+            let outcome = downloader()
+                .download(
+                    request.clone(),
+                    DownloadControl::new(),
+                    &RecordingProgress(Mutex::new(Vec::new())),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(outcome, DownloadOutcome::Completed);
+            assert_eq!(
+                fs::read(&request.workspace.source_path).unwrap(),
+                b"hello world"
+            );
+            assert_eq!(requests.lock().unwrap().len(), 2);
+        });
+    }
+
+    #[test]
+    fn reports_an_error_only_after_every_source_url_has_failed() {
+        tauri::async_runtime::block_on(async {
+            let (url, requests) = serve(vec![
+                "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                "HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            ]);
+            let (_temp, _output, mut request) = setup(url.clone());
+            request.source.backup_urls = vec![format!("{url}?backup=1")];
+
+            let error = downloader()
+                .download(
+                    request,
+                    DownloadControl::new(),
+                    &RecordingProgress(Mutex::new(Vec::new())),
+                )
+                .await
+                .err()
+                .unwrap();
+
+            assert_eq!(error.code, AppErrorCode::E006);
             assert_eq!(requests.lock().unwrap().len(), 2);
         });
     }

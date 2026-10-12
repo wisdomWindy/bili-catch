@@ -1,6 +1,13 @@
 import type { AppError } from "../../contracts/app-error";
 
-export const ASR_MODEL_IDS = ["tiny", "base", "small", "medium", "large-v3"] as const;
+export const ASR_MODEL_IDS = [
+  "tiny",
+  "base",
+  "small",
+  "medium",
+  "large-v3",
+  "fire-red-asr2",
+] as const;
 export type AsrModelId = (typeof ASR_MODEL_IDS)[number];
 
 export const TRANSCRIPTION_LANGUAGES = ["auto", "zh", "zh-TW", "en", "ja", "ko"] as const;

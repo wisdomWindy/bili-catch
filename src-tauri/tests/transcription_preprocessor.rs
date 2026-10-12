@@ -2,7 +2,8 @@ use std::{ffi::OsString, path::Path};
 
 use bilicatch_lib::{
     infrastructure::transcription::ffmpeg_preprocessor::{
-        build_preprocess_args, choose_chunk_ranges, supported_media_kind, ManagedAudioParts,
+        build_preprocess_args, choose_chunk_ranges, choose_chunk_ranges_with_limit,
+        supported_media_kind, ManagedAudioParts,
     },
     models::MediaKind,
 };
@@ -22,6 +23,16 @@ fn supported_media_extensions_are_case_insensitive_and_reject_unknown_files() {
         Some(MediaKind::Video)
     );
     assert_eq!(supported_media_kind(Path::new("notes.txt")), None);
+}
+
+#[test]
+fn fire_red_chunks_never_exceed_the_model_audio_limit() {
+    let ranges = choose_chunk_ranges_with_limit(130.0, &[], 55.0);
+
+    assert_eq!(ranges.len(), 3);
+    assert_eq!(ranges[0].duration_ms, 55_000);
+    assert_eq!(ranges[1].duration_ms, 55_000);
+    assert_eq!(ranges[2].duration_ms, 20_000);
 }
 
 #[test]

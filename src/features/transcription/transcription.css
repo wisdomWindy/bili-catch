@@ -37,7 +37,14 @@
 .primary-button:disabled, .secondary-button:disabled { opacity: .5; cursor: default; }
 .model-modal { width: min(680px, calc(100vw - 32px)); }
 .model-download-hint { margin: 0 0 10px; color: var(--color-text-muted); font-size: 13px; }
-.model-list { display: grid; }
+.model-list { display: grid; gap: 18px; }
+.model-series { display: grid; gap: 4px; }
+.model-series-title { margin: 0; color: var(--color-text-muted); font-size: 13px; font-weight: 600; }
+.model-series-toggle { display: flex; width: 100%; min-height: 32px; align-items: center; justify-content: space-between; padding: 0; color: inherit; font: inherit; text-align: left; background: transparent; border: 0; cursor: pointer; }
+.model-series-toggle:hover, .model-series-toggle:focus-visible { color: var(--color-text); }
+.model-series-chevron { flex: 0 0 auto; transition: transform 160ms ease; }
+.model-series-chevron.is-collapsed { transform: rotate(-90deg); }
+.model-series-list { display: grid; }
 .model-row { display: grid; grid-template-columns: minmax(0, 1fr) 160px 76px; min-height: 72px; align-items: center; gap: 16px; border-bottom: 1px solid var(--color-border); }
 .model-copy { display: grid; gap: 2px; }
 .model-copy strong { display: flex; align-items: center; gap: 8px; }

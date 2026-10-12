@@ -38,6 +38,7 @@ fn official_manifest_pins_all_approved_models() {
             AsrModelId::Small,
             AsrModelId::Medium,
             AsrModelId::LargeV3,
+            AsrModelId::FireRedAsr2,
         ]
     );
     assert_eq!(entries[0].size_bytes, 77_691_713);
@@ -49,6 +50,11 @@ fn official_manifest_pins_all_approved_models() {
     assert_eq!(
         entries[4].sha256,
         "64d182b440b98d5203c4f9bd541544d84c605196c4f7b845dfa11fb23594d1e2"
+    );
+    assert_eq!(entries[5].size_bytes, 775_861_420);
+    assert_eq!(
+        entries[5].sha256,
+        "ca3dbabd82170110cc0b343c2890866d449984bc9cd92b9a18371ff80a81bb99"
     );
 }
 

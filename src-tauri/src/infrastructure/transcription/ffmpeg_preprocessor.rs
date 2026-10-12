@@ -149,6 +149,16 @@ impl FfmpegTranscriptionPreprocessor {
         request: FfmpegPreprocessRequest,
         control: ProcessControl,
     ) -> Result<ManagedAudioParts, AppError> {
+        self.preprocess_with_chunk_limit(request, control, CHUNK_DURATION_SECONDS)
+            .await
+    }
+
+    pub async fn preprocess_with_chunk_limit(
+        &self,
+        request: FfmpegPreprocessRequest,
+        control: ProcessControl,
+        max_chunk_duration_seconds: f64,
+    ) -> Result<ManagedAudioParts, AppError> {
         validate_source(&request.source_path)?;
         let workspace = request
             .temporary_directory
@@ -169,7 +179,7 @@ impl FfmpegTranscriptionPreprocessor {
         })?;
 
         let result = self
-            .preprocess_into_workspace(&request, &workspace, control)
+            .preprocess_into_workspace(&request, &workspace, control, max_chunk_duration_seconds)
             .await;
         match result {
             Ok(parts) => Ok(ManagedAudioParts::new(&workspace, parts)),
@@ -185,10 +195,12 @@ impl FfmpegTranscriptionPreprocessor {
         request: &FfmpegPreprocessRequest,
         workspace: &Path,
         control: ProcessControl,
+        max_chunk_duration_seconds: f64,
     ) -> Result<Vec<(PathBuf, u64)>, AppError> {
-        let ranges = choose_chunk_ranges(
+        let ranges = choose_chunk_ranges_with_limit(
             request.duration_seconds as f64,
             request.silence_points.as_slice(),
+            max_chunk_duration_seconds,
         );
         if ranges.is_empty() {
             return Err(preprocess_error(
@@ -346,7 +358,19 @@ pub fn supported_media_kind(path: &Path) -> Option<MediaKind> {
 }
 
 pub fn choose_chunk_ranges(duration_seconds: f64, silence_points: &[f64]) -> Vec<ChunkRange> {
-    if !duration_seconds.is_finite() || duration_seconds <= 0.0 {
+    choose_chunk_ranges_with_limit(duration_seconds, silence_points, CHUNK_DURATION_SECONDS)
+}
+
+pub fn choose_chunk_ranges_with_limit(
+    duration_seconds: f64,
+    silence_points: &[f64],
+    max_chunk_duration_seconds: f64,
+) -> Vec<ChunkRange> {
+    if !duration_seconds.is_finite()
+        || duration_seconds <= 0.0
+        || !max_chunk_duration_seconds.is_finite()
+        || max_chunk_duration_seconds <= 0.0
+    {
         return Vec::new();
     }
 
@@ -354,8 +378,8 @@ pub fn choose_chunk_ranges(duration_seconds: f64, silence_points: &[f64]) -> Vec
     let mut ranges = Vec::new();
     let mut start_seconds = 0.0;
 
-    while duration_seconds - start_seconds > CHUNK_DURATION_SECONDS {
-        let target = start_seconds + CHUNK_DURATION_SECONDS;
+    while duration_seconds - start_seconds > max_chunk_duration_seconds {
+        let target = start_seconds + max_chunk_duration_seconds;
         let boundary = silence_points
             .iter()
             .copied()

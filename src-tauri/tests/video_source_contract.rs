@@ -58,3 +58,27 @@ fn selector_rejects_non_mp4_video_source_before_download() {
 
     assert_eq!(error.code, AppErrorCode::E004);
 }
+
+#[test]
+fn selector_promotes_a_trusted_backup_when_the_primary_cdn_is_untrusted() {
+    let mut source = candidate("32", VideoCodec::Avc, "video/mp4");
+    source.source.primary_url =
+        "https://z5u329t.edge.mountaintoys.cn/video.m4s?token=fixture".into();
+    source.source.backup_urls = vec![
+        "https://another.edge.mountaintoys.cn/video.m4s?token=fixture".into(),
+        "https://upos-sz-mirrorhwo1.bilivideo.com/video.m4s?token=fixture".into(),
+        "https://upos-sz-mirrorhw.bilivideo.com/video.m4s?token=fixture".into(),
+    ];
+
+    let selected = select_video_source(&[source], "32", VideoCodec::Avc, false)
+        .expect("a trusted Bilibili backup should keep the video source available");
+
+    assert_eq!(
+        selected.primary_url,
+        "https://upos-sz-mirrorhwo1.bilivideo.com/video.m4s?token=fixture"
+    );
+    assert_eq!(
+        selected.backup_urls,
+        vec!["https://upos-sz-mirrorhw.bilivideo.com/video.m4s?token=fixture"]
+    );
+}

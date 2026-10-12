@@ -130,4 +130,41 @@ describe("TranscribePage", () => {
     await nextTick();
     expect(start.attributes("disabled")).toBeUndefined();
   });
+
+  it("disables unsupported language and GPU choices for FireRedASR2", async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const service = {
+      listTasks: vi.fn(async () => ({ sequence: 0, tasks: [] })),
+      listModels: vi.fn(async () => ({ sequence: 0, models: [{
+        id: "fire-red-asr2", displayName: "FireRedASR2 CTC (INT8)",
+        fileName: "fire-red-asr2-ctc-int8.onnx", sizeBytes: 100,
+        installed: true, valid: true, isDefault: false, inUse: false,
+        recommendedFor: "Chinese and English", capabilities: ["zh-en", "cpu"],
+        downloadState: "completed", downloadedBytes: 100, revision: 0,
+      }] })),
+    } as unknown as TranscriptionService;
+    const events: TranscriptionEventSource = { subscribe: vi.fn(async () => () => undefined) };
+    const router = createAppRouter(createMemoryHistory());
+    await router.push("/transcribe");
+    await router.isReady();
+    const Host = defineComponent({ setup: () => () => h(NMessageProvider, null, { default: () => h(TranscribePage) }) });
+    const wrapper = mount(Host, {
+      global: {
+        plugins: [pinia, router, createAppI18n()],
+        provide: {
+          [transcriptionServiceKey as symbol]: service,
+          [transcriptionEventSourceKey as symbol]: events,
+        },
+      },
+    });
+    await flushPromises();
+
+    const selects = wrapper.findAll(".option-grid select");
+    await selects[0].setValue("fire-red-asr2");
+
+    expect(selects[1].get('option[value="ja"]').attributes("disabled")).toBeDefined();
+    expect(selects[1].get('option[value="ko"]').attributes("disabled")).toBeDefined();
+    expect(selects[3].get('option[value="enabled"]').attributes("disabled")).toBeDefined();
+  });
 });
