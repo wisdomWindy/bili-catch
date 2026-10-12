@@ -234,10 +234,15 @@ jobs:
           if (-not (Test-Path -LiteralPath $tokens -PathType Leaf)) {
             throw "FireRedASR2 token table is missing after checkout."
           }
-          if ((Get-Item -LiteralPath $tokens).Length -ne 79172) {
+          $normalizedTokenText = [System.IO.File]::ReadAllText($tokens).Replace("`r`n", "`n")
+          $normalizedTokenBytes = [System.Text.Encoding]::UTF8.GetBytes($normalizedTokenText)
+          if ($normalizedTokenBytes.Length -ne 79172) {
             throw "FireRedASR2 token table size mismatch."
           }
-          if ((Get-FileHash -LiteralPath $tokens -Algorithm SHA256).Hash -ne "1BC613DE2112D257E61A349C3E72D1B1A9CF19C33D3CA954197AD2171E5EA07B") {
+          $normalizedTokenHash = [Convert]::ToHexString(
+            [System.Security.Cryptography.SHA256]::HashData($normalizedTokenBytes)
+          )
+          if ($normalizedTokenHash -ne "1BC613DE2112D257E61A349C3E72D1B1A9CF19C33D3CA954197AD2171E5EA07B") {
             throw "FireRedASR2 token table SHA-256 mismatch."
           }
 
