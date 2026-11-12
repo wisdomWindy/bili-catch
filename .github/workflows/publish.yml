@@ -84,11 +84,8 @@ jobs:
           release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           cat > "$RUNNER_TEMP/release-body.md" <<BODY
           Changes:
-          - Adds local audio and video transcription powered by whisper.cpp and FireRedASR2.
-          - Adds transcription model management, editable results, and TXT/SRT export.
-          - Groups transcription models into collapsible series.
-          - Falls back through every available media CDN URL before reporting a download failure.
-          - Improves task-list navigation and Simplified Chinese transcription output.
+          - Adds a donation entry in Settings with bundled Alipay and WeChat payment QR codes.
+          - Improves donation dialog accessibility, focus handling, and responsive layout.
 
           Downloads:
           - Windows x64: [\`BiliCatch_${version}_Windows_x64-setup.exe\`]($release_base/BiliCatch_${version}_Windows_x64-setup.exe)

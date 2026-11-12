@@ -144,6 +144,7 @@ export const enUS = {
       currentVersion: "Current version", versionUnavailable: "Unavailable", checkUpdates: "Check for updates",
       checking: "Checking", installing: "Installing", latest: "You are up to date", available: "Version {version} is available", installUpdate: "Install update",
       updateFailed: "Could not check for updates", installFailed: "Could not install update", openLicenses: "Open-source licenses", licenseFailed: "Could not open open-source licenses",
+      donation: "Donate", alipay: "Alipay", wechatPay: "WeChat Pay", alipayQrAlt: "Alipay payment QR code", wechatQrAlt: "WeChat Pay QR code", closeDonation: "Close",
     },
     updateDialog: {
       title: "Update available",

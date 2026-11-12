@@ -82,13 +82,13 @@ async function renderReady(selectedDirectory: string | null = null) {
 }
 
 describe("SettingsPage", () => {
-  it("renders five continuous sections, 23 controls, and three about rows", async () => {
+  it("renders five continuous sections, 23 controls, and four about rows", async () => {
     const { wrapper } = await renderReady();
 
     expect(wrapper.get("[data-testid='page-heading']").text()).toBe("设置");
     expect(wrapper.findAll(".settings-section")).toHaveLength(5);
     expect(wrapper.findAll("[data-setting-field]")).toHaveLength(23);
-    expect(wrapper.findAll("[data-about-row]")).toHaveLength(3);
+    expect(wrapper.findAll("[data-about-row]")).toHaveLength(4);
     expect(wrapper.text()).not.toContain("手动保存");
     expect(wrapper.find(".empty-state").exists()).toBe(false);
     for (const row of wrapper.findAll("[data-setting-field]")) {

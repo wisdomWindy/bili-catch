@@ -80,7 +80,7 @@ onBeforeUnmount(restorePreviousFocus);
     @update:show="!$event && requestClose()"
   >
     <div
-      class="update-dialog"
+      class="settings-dialog"
       role="alertdialog"
       aria-modal="true"
       aria-labelledby="startup-update-title"

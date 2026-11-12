@@ -1,0 +1,195 @@
+[
+  {
+    "scenario": {
+      "name": "light-zh-1280x900",
+      "width": 1280,
+      "height": 900,
+      "query": "demo=1&theme=light"
+    },
+    "donation": {
+      "dialogCount": 1,
+      "horizontalOverflow": false,
+      "dialogWithinViewport": true,
+      "titleVisible": true,
+      "scrollContainers": [
+        {
+          "className": "n-scrollbar-container",
+          "scrollTop": 0,
+          "clientHeight": 900,
+          "scrollHeight": 1293
+        },
+        {
+          "className": "n-scrollbar-content n-modal-scroll-content",
+          "scrollTop": 0,
+          "clientHeight": 1293,
+          "scrollHeight": 1293
+        }
+      ],
+      "imageDetails": [
+        {
+          "alt": "支付宝收款码",
+          "naturalWidth": 1260,
+          "naturalHeight": 1890,
+          "renderedWidth": 374,
+          "renderedHeight": 561,
+          "ratioDelta": 0,
+          "horizontallyContained": true
+        },
+        {
+          "alt": "微信收款码",
+          "naturalWidth": 1304,
+          "naturalHeight": 1777,
+          "renderedWidth": 374,
+          "renderedHeight": 509.66,
+          "ratioDelta": 0,
+          "horizontallyContained": true
+        }
+      ],
+      "initialFocus": "close-donation",
+      "tabFocusInsideModal": true,
+      "escapeRestoredFocus": true,
+      "maskRestoredFocus": true,
+      "buttonRestoredFocus": true
+    },
+    "screenshot": {
+      "standardDeviations": [
+        67.04,
+        49.97,
+        55.32
+      ],
+      "nonblank": true
+    },
+    "consoleErrors": []
+  },
+  {
+    "scenario": {
+      "name": "dark-zh-800x900",
+      "width": 800,
+      "height": 900,
+      "query": "demo=1&theme=dark"
+    },
+    "donation": {
+      "dialogCount": 1,
+      "horizontalOverflow": false,
+      "dialogWithinViewport": true,
+      "titleVisible": true,
+      "scrollContainers": [
+        {
+          "className": "n-scrollbar-container",
+          "scrollTop": 0,
+          "clientHeight": 900,
+          "scrollHeight": 1293
+        },
+        {
+          "className": "n-scrollbar-content n-modal-scroll-content",
+          "scrollTop": 0,
+          "clientHeight": 1293,
+          "scrollHeight": 1293
+        }
+      ],
+      "imageDetails": [
+        {
+          "alt": "支付宝收款码",
+          "naturalWidth": 1260,
+          "naturalHeight": 1890,
+          "renderedWidth": 374,
+          "renderedHeight": 561,
+          "ratioDelta": 0,
+          "horizontallyContained": true
+        },
+        {
+          "alt": "微信收款码",
+          "naturalWidth": 1304,
+          "naturalHeight": 1777,
+          "renderedWidth": 374,
+          "renderedHeight": 509.66,
+          "ratioDelta": 0,
+          "horizontallyContained": true
+        }
+      ],
+      "initialFocus": "close-donation",
+      "tabFocusInsideModal": true,
+      "escapeRestoredFocus": true,
+      "maskRestoredFocus": true,
+      "buttonRestoredFocus": true
+    },
+    "screenshot": {
+      "standardDeviations": [
+        85.99,
+        90.46,
+        102.92
+      ],
+      "nonblank": true
+    },
+    "consoleErrors": []
+  },
+  {
+    "scenario": {
+      "name": "light-en-800x900",
+      "width": 800,
+      "height": 900,
+      "query": "demo=1&theme=light&locale=en-US"
+    },
+    "donation": {
+      "dialogCount": 1,
+      "horizontalOverflow": false,
+      "dialogWithinViewport": true,
+      "titleVisible": true,
+      "scrollContainers": [
+        {
+          "className": "n-scrollbar-container",
+          "scrollTop": 0,
+          "clientHeight": 900,
+          "scrollHeight": 1293
+        },
+        {
+          "className": "n-scrollbar-content n-modal-scroll-content",
+          "scrollTop": 0,
+          "clientHeight": 1293,
+          "scrollHeight": 1293
+        }
+      ],
+      "imageDetails": [
+        {
+          "alt": "Alipay payment QR code",
+          "naturalWidth": 1260,
+          "naturalHeight": 1890,
+          "renderedWidth": 374,
+          "renderedHeight": 561,
+          "ratioDelta": 0,
+          "horizontallyContained": true
+        },
+        {
+          "alt": "WeChat Pay QR code",
+          "naturalWidth": 1304,
+          "naturalHeight": 1777,
+          "renderedWidth": 374,
+          "renderedHeight": 509.66,
+          "ratioDelta": 0,
+          "horizontallyContained": true
+        }
+      ],
+      "initialFocus": "close-donation",
+      "tabFocusInsideModal": true,
+      "escapeRestoredFocus": true,
+      "maskRestoredFocus": true,
+      "buttonRestoredFocus": true
+    },
+    "screenshot": {
+      "standardDeviations": [
+        84.7,
+        61.75,
+        67.28
+      ],
+      "nonblank": true
+    },
+    "consoleErrors": []
+  },
+  {
+    "updateRegression": {
+      "className": "n-modal settings-dialog",
+      "title": "发现新版本",
+      "withinViewport": true
+    }
+  }
+]

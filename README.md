@@ -22,13 +22,13 @@ BiliCatch 是一个基于 Tauri 2、Vue 3、TypeScript 和 Rust 的哔哩哔哩�
 
 ## 下载
 
-当前稳定版本为 [v0.2.0](https://github.com/wisdomWindy/bili-catch/releases/tag/v0.2.0)：
+当前稳定版本为 [v0.2.2](https://github.com/wisdomWindy/bili-catch/releases/tag/v0.2.2)：
 
 | 平台 | 系统要求 | 安装包 |
 | --- | --- | --- |
-| Windows x64 | Windows 10/11 | [NSIS 安装包](https://github.com/wisdomWindy/bili-catch/releases/download/v0.2.0/BiliCatch_0.2.0_Windows_x64-setup.exe) |
-| macOS Intel | macOS 11 或更高版本 | [Intel DMG](https://github.com/wisdomWindy/bili-catch/releases/download/v0.2.0/BiliCatch_0.2.0_macOS_Intel.dmg) |
-| macOS Apple Silicon | macOS 11 或更高版本 | [Apple Silicon DMG](https://github.com/wisdomWindy/bili-catch/releases/download/v0.2.0/BiliCatch_0.2.0_macOS_AppleSilicon.dmg) |
+| Windows x64 | Windows 10/11 | [NSIS 安装包](https://github.com/wisdomWindy/bili-catch/releases/download/v0.2.2/BiliCatch_0.2.2_Windows_x64-setup.exe) |
+| macOS Intel | macOS 11 或更高版本 | [Intel DMG](https://github.com/wisdomWindy/bili-catch/releases/download/v0.2.2/BiliCatch_0.2.2_macOS_Intel.dmg) |
+| macOS Apple Silicon | macOS 11 或更高版本 | [Apple Silicon DMG](https://github.com/wisdomWindy/bili-catch/releases/download/v0.2.2/BiliCatch_0.2.2_macOS_AppleSilicon.dmg) |
 
 Windows 仅发布 NSIS 安装包，不发布 MSI。所有历史版本和更新说明可在 [GitHub Releases](https://github.com/wisdomWindy/bili-catch/releases) 查看。
 
@@ -162,8 +162,8 @@ src-tauri/binaries/onnxruntime-v1.28.2-MIT-LICENSE.txt
 发布流水线位于 `.github/workflows/publish.yml`，推送 `v*` 版本标签时自动运行，也可通过 GitHub Actions 手动选择已有标签重新发布：
 
 ~~~bash
-git tag v0.2.1
-git push origin v0.2.1
+git tag v0.2.2
+git push origin v0.2.2
 ~~~
 
 GitHub Actions 需要配置以下 Repository secrets：

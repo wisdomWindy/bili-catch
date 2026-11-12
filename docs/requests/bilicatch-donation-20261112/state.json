@@ -1,0 +1,50 @@
+{
+  "request_id": "bilicatch-donation-20261112",
+  "source": {
+    "type": "direct_user_instruction_with_assets",
+    "date": "2026-11-12",
+    "evidence": [
+      "USER-DIRECT-01",
+      "USER-ASSET-ALIPAY-01",
+      "USER-ASSET-WECHAT-01"
+    ]
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-donation-20261112/request.md",
+    "prd_snapshot": "docs/requests/bilicatch-donation-20261112/artifacts/prd-snapshot.md",
+    "code_context": "docs/requests/bilicatch-donation-20261112/artifacts/code-context.md",
+    "page_design": "docs/requests/bilicatch-donation-20261112/design/page-design.md",
+    "spec": "docs/requests/bilicatch-donation-20261112/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-donation-20261112/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-donation-20261112/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-donation-20261112/plan/task-board.md",
+    "execution": "docs/requests/bilicatch-donation-20261112/execution/changelog.md",
+    "verification": "docs/requests/bilicatch-donation-20261112/verification/verification.md",
+    "review": "docs/requests/bilicatch-donation-20261112/review/review.md"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "speed_profile": {
+    "level": "S1 local",
+    "reason": "单个设置区域内的本地展示功能，影响 Vue 组件、样式、语言包、测试和静态资源，但没有跨模块状态、API、IPC 或持久化语义。",
+    "context_budget": "scoped",
+    "artifact_density": "compact"
+  },
+  "routing": {
+    "page_design_required": true,
+    "architecture_design_required": false,
+    "architecture_reason": "预计使用关于区域内的本地可见状态和一个有明确对话框交互生命周期的 Vue 组件，不改变模块边界、共享状态、依赖方向或跨文件业务规则。"
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 13,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "verification_failed"
+  }
+}

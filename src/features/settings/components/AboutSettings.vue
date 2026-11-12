@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { Download, ExternalLink, LoaderCircle, RefreshCw } from "@lucide/vue";
+import { Download, ExternalLink, Heart, LoaderCircle, RefreshCw } from "@lucide/vue";
+import { ref } from "vue";
+import DonationDialog from "./DonationDialog.vue";
 import SettingSection from "./SettingSection.vue";
 
 defineProps<{ version: string | null; updateStatus: "idle" | "checking" | "installing" | "latest" | "available" | "error"; updateMessage: string | null }>();
 defineEmits<{ check: []; install: []; licenses: [] }>();
+
+const isDonationDialogVisible = ref(false);
+
+function handleOpenDonationDialog() {
+  isDonationDialogVisible.value = true;
+}
+
+function handleCloseDonationDialog() {
+  isDonationDialogVisible.value = false;
+}
 </script>
 
 <template>
@@ -18,5 +30,16 @@ defineEmits<{ check: []; install: []; licenses: [] }>();
       </div><span class="field-save-status" />
     </div>
     <div class="setting-row about-row" data-about-row><div class="setting-row__label">{{ $t("settings.about.openLicenses") }}</div><div class="setting-row__control"><button data-testid="open-licenses" type="button" class="command-button command-button--quiet" :aria-label="$t('settings.about.openLicenses')" @click="$emit('licenses')"><ExternalLink :size="17" aria-hidden="true" /><span>{{ $t("settings.about.openLicenses") }}</span></button></div><span class="field-save-status" /></div>
+    <div class="setting-row about-row" data-about-row>
+      <div class="setting-row__label">{{ $t("settings.about.donation") }}</div>
+      <div class="setting-row__control">
+        <button data-testid="open-donation" type="button" class="command-button command-button--quiet" :aria-label="$t('settings.about.donation')" @click="handleOpenDonationDialog">
+          <Heart :size="17" aria-hidden="true" />
+          <span>{{ $t("settings.about.donation") }}</span>
+        </button>
+      </div>
+      <span class="field-save-status" />
+    </div>
+    <DonationDialog :show="isDonationDialogVisible" @close="handleCloseDonationDialog" />
   </SettingSection>
 </template>

@@ -144,6 +144,7 @@ export const zhCN = {
       currentVersion: "当前版本", versionUnavailable: "不可用", checkUpdates: "检查更新",
       checking: "检查中", installing: "正在安装", latest: "已是最新版本", available: "发现新版本 {version}", installUpdate: "安装更新",
       updateFailed: "暂时无法检查更新", installFailed: "更新安装失败", openLicenses: "开源许可", licenseFailed: "暂时无法打开开源许可",
+      donation: "打赏", alipay: "支付宝", wechatPay: "微信支付", alipayQrAlt: "支付宝收款码", wechatQrAlt: "微信收款码", closeDonation: "关闭",
     },
     updateDialog: {
       title: "发现新版本",
