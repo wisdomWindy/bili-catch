@@ -47,6 +47,7 @@ describe("normalizeIpcError", () => {
       "E015",
       "E016",
       "E017",
+      "E018",
       "E_INTERNAL",
     ]);
   });

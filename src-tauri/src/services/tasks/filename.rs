@@ -31,6 +31,23 @@ pub fn sanitize_audio_filename(
     finish_filename(stem, bvid, page, extension)
 }
 
+/// Collection and bangumi units are named `{index}_{title}`.
+pub fn sanitize_season_filename(
+    group_index: u32,
+    part_title: &str,
+    bvid: &str,
+    page: u32,
+    extension: &str,
+) -> String {
+    let part = normalize_stem(part_title);
+    let stem = if part.is_empty() {
+        format!("{bvid}-P{page}")
+    } else {
+        format!("{group_index}_{part}")
+    };
+    finish_filename(stem, bvid, page, extension)
+}
+
 fn normalize_stem(value: &str) -> String {
     let filtered: String = value
         .chars()

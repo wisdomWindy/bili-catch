@@ -7,7 +7,7 @@ mod ports;
 mod state_machine;
 mod validation;
 
-pub use filename::{sanitize_audio_filename, sanitize_filename};
+pub use filename::{sanitize_audio_filename, sanitize_filename, sanitize_season_filename};
 pub use manager::TaskManager;
 pub use mutations::ExecutionUpdate;
 pub use notifications::{

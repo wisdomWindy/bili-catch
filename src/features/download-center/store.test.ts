@@ -8,14 +8,44 @@ const fixture: ParseVideoResult = {
   canonicalUrl: "https://www.bilibili.com/video/BV1xx411c7BF",
   bvid: "BV1xx411c7BF",
   aid: 170001,
+  source: "ugc",
+  container: {
+    kind: "video",
+    id: "BV1xx411c7BF",
+    title: "Fixture video",
+    unitCount: 2,
+  },
   title: "Fixture video",
   ownerName: "Fixture owner",
   coverUrl: "https://i0.hdslb.com/fixture.jpg",
   durationSeconds: 183,
   requestedPage: 2,
+  requestedCid: null,
   parts: [
-    { cid: 1001, page: 1, title: "Opening", durationSeconds: 90 },
-    { cid: 1002, page: 2, title: "Deep dive", durationSeconds: 93 },
+    {
+      cid: 1001,
+      bvid: "BV1xx411c7BF",
+      epId: null,
+      page: 1,
+      partCount: 2,
+      groupIndex: 1,
+      title: "Opening",
+      durationSeconds: 90,
+      availability: "playable",
+      unavailableReason: null,
+    },
+    {
+      cid: 1002,
+      bvid: "BV1xx411c7BF",
+      epId: null,
+      page: 2,
+      partCount: 2,
+      groupIndex: 1,
+      title: "Deep dive",
+      durationSeconds: 93,
+      availability: "playable",
+      unavailableReason: null,
+    },
   ],
   qualities: [
     { id: "120", label: "4K", requiresLogin: true },
@@ -89,6 +119,10 @@ describe("download center store", () => {
       videoTitle: "Fixture video",
       partCount: 2,
       cid: 1001,
+      bvid: "BV1xx411c7BF",
+      source: "ugc",
+      epId: null,
+      groupIndex: 1,
       mode: "video-audio",
       qualityId: "80",
       codec: "avc",
@@ -103,6 +137,71 @@ describe("download center store", () => {
       audioFormat: "m4a",
       audioBitrateId: "source",
     });
+  });
+
+  it("keeps each unit bvid instead of the container bvid", async () => {
+    const collection: ParseVideoResult = {
+      ...fixture,
+      canonicalUrl: "https://www.bilibili.com/bangumi/play/ss9015689",
+      bvid: null,
+      aid: null,
+      source: "bangumi",
+      container: { kind: "season", id: "9015689", title: "AI信息分享", unitCount: 2 },
+      parts: [
+        { ...fixture.parts[0], bvid: "BV1kw8b6bEeL", epId: 733316, groupIndex: 1 },
+        { ...fixture.parts[1], bvid: "BV1c94Z6iE9N", epId: 733317, groupIndex: 2 },
+      ],
+    };
+    const store = useDownloadCenterStore();
+
+    await store.parse(service(collection), "https://www.bilibili.com/bangumi/play/ss9015689");
+    store.selectAll();
+    const drafts = store.buildDrafts();
+
+    expect(drafts.map((draft) => draft.bvid)).toEqual(["BV1kw8b6bEeL", "BV1c94Z6iE9N"]);
+    expect(drafts.map((draft) => draft.epId)).toEqual([733316, 733317]);
+    expect(drafts.map((draft) => draft.source)).toEqual(["bangumi", "bangumi"]);
+  });
+
+  it("prefers the requested unit cid over the requested page", async () => {
+    const store = useDownloadCenterStore();
+    await store.parse(
+      service({ ...fixture, requestedCid: 1002, requestedPage: 1 }),
+      "https://www.bilibili.com/bangumi/play/ep733316",
+    );
+
+    expect(store.selectedCids).toEqual([1002]);
+  });
+
+  it("skips unavailable units in select-all, invert and group toggles", async () => {
+    const mixed: ParseVideoResult = {
+      ...fixture,
+      parts: [
+        { ...fixture.parts[0], availability: "playable", unavailableReason: null },
+        {
+          ...fixture.parts[1],
+          availability: "unavailable",
+          unavailableReason: "vip-required",
+        },
+      ],
+    };
+    const store = useDownloadCenterStore();
+    await store.parse(service(mixed), "BV1xx411c7BF");
+
+    store.selectAll();
+    expect(store.selectedCids).toEqual([1001]);
+
+    store.invertSelection();
+    expect(store.selectedCids).toEqual([]);
+
+    store.toggleGroup([1001, 1002]);
+    expect(store.selectedCids).toEqual([1001]);
+
+    store.togglePart(1002);
+    expect(store.selectedCids).toEqual([1001]);
+
+    store.toggleGroup([1001]);
+    expect(store.selectedCids).toEqual([]);
   });
 
   it("ignores stale responses from an older request", async () => {

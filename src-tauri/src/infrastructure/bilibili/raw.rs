@@ -18,6 +18,8 @@ pub(crate) struct ViewData {
     pub owner: RawOwner,
     #[serde(default)]
     pub pages: Vec<RawPage>,
+    #[serde(default)]
+    pub ugc_season: Option<RawUgcSeason>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -33,6 +35,95 @@ pub(crate) struct RawPage {
     pub part: String,
     #[serde(default)]
     pub duration: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct RawUgcSeason {
+    #[serde(default)]
+    pub id: u64,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub cover: String,
+    #[serde(default)]
+    pub sections: Vec<RawSeasonSection>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct RawSeasonSection {
+    #[serde(default)]
+    pub episodes: Vec<RawSeasonEpisode>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct RawSeasonEpisode {
+    #[serde(default)]
+    pub bvid: String,
+    #[serde(default)]
+    pub cid: u64,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub arc: Option<RawSeasonArc>,
+    #[serde(default)]
+    pub pages: Vec<RawPage>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct RawSeasonArc {
+    #[serde(default)]
+    pub duration: u64,
+}
+
+/// PGC responses wrap their payload in `result` instead of `data`.
+#[derive(Debug, Deserialize)]
+pub(crate) struct PgcResponse<T> {
+    pub code: i64,
+    #[serde(default)]
+    pub message: String,
+    pub result: Option<T>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct SeasonData {
+    #[serde(default)]
+    pub season_id: u64,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub cover: String,
+    #[serde(default)]
+    pub episodes: Vec<RawEpisode>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct RawEpisode {
+    #[serde(default)]
+    pub ep_id: u64,
+    #[serde(default)]
+    pub aid: u64,
+    #[serde(default)]
+    pub bvid: String,
+    #[serde(default)]
+    pub cid: u64,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub long_title: String,
+    /// Milliseconds in the PGC payload.
+    #[serde(default)]
+    pub duration: u64,
+    #[serde(default)]
+    pub badge: String,
+    #[serde(default)]
+    pub section_type: u32,
+    pub rights: Option<RawEpisodeRights>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct RawEpisodeRights {
+    #[serde(default)]
+    pub allow_download: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]

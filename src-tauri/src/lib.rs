@@ -183,6 +183,16 @@ pub fn run() {
                 &install_directory,
                 BUNDLED_FIRE_RED_TOKENS_NAMES,
             );
+            let ocr_model_path = resolve_ffmpeg_sidecar(
+                &resource_dir,
+                &install_directory,
+                &["pp-ocrv4-rec.onnx"],
+            );
+            let ocr_dictionary_path = resolve_ffmpeg_sidecar(
+                &resource_dir,
+                &install_directory,
+                &["ppocr_keys_v1.txt"],
+            );
             let defaults = services::settings::SettingsDefaults::from_application_paths(
                 &install_directory,
                 &app_data_directory,
@@ -326,6 +336,8 @@ pub fn run() {
                         whisper: whisper_path,
                         sherpa: sherpa_path,
                         fire_red_tokens: fire_red_tokens_path,
+                        ocr_model: ocr_model_path,
+                        ocr_dictionary: ocr_dictionary_path,
                     },
                     transcription_event_sink,
                     Arc::new(

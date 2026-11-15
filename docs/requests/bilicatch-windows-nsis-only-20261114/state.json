@@ -1,0 +1,36 @@
+{
+  "request_id": "bilicatch-windows-nsis-only-20261114",
+  "source": {
+    "type": "direct_instruction",
+    "reference": "用户指令：“windows不打包mis，直达包NSIS” + “NSIS 不是打包一个 exe 文件”（2026-11-14）"
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-windows-nsis-only-20261114/request.md",
+    "verification": "docs/requests/bilicatch-windows-nsis-only-20261114/verification/verification.md",
+    "config": "src-tauri/tauri.windows.conf.json",
+    "installer_script": "src-tauri/nsis/installer.nsi",
+    "build_script": "scripts/build-nsis.ps1",
+    "official_installer": "src-tauri/target/release/bundle/nsis/BiliCatch_0.2.2_x64-setup.exe",
+    "build_log": "docs/requests/bilicatch-windows-nsis-only-20261114/verification/tauri-nsis-official.log"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "speed_profile": {
+    "level": "S1 local",
+    "reason": "平台打包配置 + 一条离线 NSIS 打包链路，无产品行为变更。",
+    "context_budget": "narrow",
+    "artifact_density": "compact"
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 3,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}

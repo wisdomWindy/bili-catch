@@ -134,6 +134,8 @@ impl AudioExecutor {
             .resolve(&AudioSourceRequest {
                 bvid: spec.task.bvid.clone(),
                 cid: spec.task.cid,
+                source: spec.task.source,
+                ep_id: spec.task.ep_id,
                 output_profile,
             })
             .await?;
@@ -274,6 +276,8 @@ impl AudioExecutor {
             .resolve(&AudioSourceRequest {
                 bvid: spec.task.bvid.clone(),
                 cid: spec.task.cid,
+                source: spec.task.source,
+                ep_id: spec.task.ep_id,
                 output_profile,
             })
             .await?;

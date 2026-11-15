@@ -26,6 +26,8 @@ use crate::{
 
 pub const SHERPA_ONNX_VERSION: &str = "1.13.8";
 pub const FIRE_RED_MAX_CHUNK_SECONDS: f64 = 55.0;
+/// AED 不返回字级时间戳，分段只能取 chunk 边界；用更短的上限换取更细的 SRT 时间轴。
+pub const FIRE_RED_AED_MAX_CHUNK_SECONDS: f64 = 20.0;
 pub type FireRedRequest = TranscriberRequest;
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 
@@ -55,6 +57,22 @@ pub fn resolve_fire_red_sidecar(configured_path: &Path) -> Result<PathBuf, AppEr
 }
 
 pub fn build_fire_red_args(request: &FireRedRequest, tokens_path: &Path) -> Vec<OsString> {
+    if request.model_path.is_dir() {
+        return vec![
+            prefixed_path("--tokens=", tokens_path),
+            prefixed_path(
+                "--fire-red-asr-encoder=",
+                &request.model_path.join(ENCODER_FILE),
+            ),
+            prefixed_path(
+                "--fire-red-asr-decoder=",
+                &request.model_path.join(DECODER_FILE),
+            ),
+            "--num-threads=4".into(),
+            "--debug=false".into(),
+            request.audio_path.as_os_str().to_owned(),
+        ];
+    }
     vec![
         prefixed_path("--tokens=", tokens_path),
         prefixed_path("--fire-red-asr-ctc=", &request.model_path),
@@ -64,6 +82,9 @@ pub fn build_fire_red_args(request: &FireRedRequest, tokens_path: &Path) -> Vec<
         request.audio_path.as_os_str().to_owned(),
     ]
 }
+
+pub const ENCODER_FILE: &str = "encoder.int8.onnx";
+pub const DECODER_FILE: &str = "decoder.int8.onnx";
 
 pub fn parse_fire_red_json(
     bytes: &[u8],
@@ -141,6 +162,7 @@ fn token_segments(
                     start_ms: timestamp_ms(offset_ms, start_seconds)?,
                     end_ms: timestamp_ms(offset_ms, timestamp + 0.5)?,
                     text: value.into(),
+                    ..TranscriptSegment::default()
                 });
             }
             text.clear();
@@ -173,6 +195,7 @@ fn fallback_segment(
         start_ms: timestamp_ms(offset_ms, start)?,
         end_ms: timestamp_ms(offset_ms, end)?,
         text: document.text.trim().into(),
+        ..TranscriptSegment::default()
     }])
 }
 
@@ -351,7 +374,11 @@ fn stage_windows_paths_at(
         return Err(staging_error());
     }
     fs::create_dir_all(staging_root).map_err(|_| staging_error())?;
-    request.model_path = stage_cached_path(&request.model_path, staging_root, "model", "onnx")?;
+    request.model_path = if request.model_path.is_dir() {
+        stage_directory(&request.model_path, staging_root)?
+    } else {
+        stage_cached_path(&request.model_path, staging_root, "model", "onnx")?
+    };
     let staged_tokens = stage_cached_path(tokens_path, staging_root, "tokens", "txt")?;
     let (audio_path, cleanup_audio) = if request.audio_path.to_string_lossy().is_ascii() {
         (request.audio_path.clone(), None)
@@ -367,6 +394,35 @@ fn stage_windows_paths_at(
         tokens_path: staged_tokens,
         cleanup_audio,
     })
+}
+
+#[cfg(windows)]
+fn stage_directory(source: &Path, staging_root: &Path) -> Result<PathBuf, AppError> {
+    if source.to_string_lossy().is_ascii() {
+        return Ok(source.into());
+    }
+    let mut total_size = 0_u64;
+    let mut files = Vec::new();
+    for entry in fs::read_dir(source).map_err(|_| staging_error())? {
+        let path = entry.map_err(|_| staging_error())?.path();
+        if path.is_file() {
+            total_size += fs::metadata(&path).map_err(|_| staging_error())?.len();
+            files.push(path);
+        }
+    }
+    if files.is_empty() {
+        return Err(staging_error());
+    }
+    let destination = staging_root.join(format!("aed-{total_size}"));
+    if fs::metadata(&destination).is_ok_and(|metadata| metadata.is_dir()) {
+        return Ok(destination);
+    }
+    fs::create_dir_all(&destination).map_err(|_| staging_error())?;
+    for path in files {
+        let name = path.file_name().ok_or_else(staging_error)?;
+        publish_staged_file(&path, &destination.join(name))?;
+    }
+    Ok(destination)
 }
 
 #[cfg(windows)]
@@ -494,7 +550,13 @@ impl SidecarRunner for TokioSidecarRunner {
 }
 
 fn validate_request(request: &FireRedRequest) -> Result<(), AppError> {
-    if !request.model_path.is_file() {
+    let model_ready = if request.model_path.is_dir() {
+        request.model_path.join(ENCODER_FILE).is_file()
+            && request.model_path.join(DECODER_FILE).is_file()
+    } else {
+        request.model_path.is_file()
+    };
+    if !model_ready {
         return Err(sidecar_error(
             AppErrorCode::E011,
             "MODEL_UNAVAILABLE",
@@ -584,6 +646,69 @@ fn sidecar_error(code: AppErrorCode, details: &str, message: &str) -> AppError {
         code,
         message: message.into(),
         details: Some(details.into()),
+    }
+}
+
+#[cfg(test)]
+mod argument_tests {
+    use std::path::Path;
+
+    use super::{build_fire_red_args, DECODER_FILE, ENCODER_FILE};
+    use crate::{
+        models::{GpuMode, TranscriptionLanguage},
+        services::transcription::ports::TranscriberRequest,
+    };
+
+    fn request(model_path: std::path::PathBuf) -> TranscriberRequest {
+        TranscriberRequest {
+            model_path,
+            audio_path: "audio.wav".into(),
+            output_base: "result".into(),
+            language: TranscriptionLanguage::Zh,
+            gpu_mode: GpuMode::Auto,
+            offset_ms: 0,
+        }
+    }
+
+    #[test]
+    fn directory_models_use_the_aed_encoder_decoder_arguments() {
+        let temp = tempfile::tempdir().unwrap();
+        let directory = temp.path().join("fire-red-asr2-aed");
+        std::fs::create_dir_all(&directory).unwrap();
+        std::fs::write(directory.join(ENCODER_FILE), b"encoder").unwrap();
+        std::fs::write(directory.join(DECODER_FILE), b"decoder").unwrap();
+
+        let arguments = build_fire_red_args(&request(directory.clone()), Path::new("tokens.txt"))
+            .iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(arguments.contains(&format!(
+            "--fire-red-asr-encoder={}",
+            directory.join(ENCODER_FILE).display()
+        )));
+        assert!(arguments.contains(&format!(
+            "--fire-red-asr-decoder={}",
+            directory.join(DECODER_FILE).display()
+        )));
+        assert!(!arguments.iter().any(|value| value.starts_with("--fire-red-asr-ctc=")));
+    }
+
+    #[test]
+    fn single_file_models_keep_the_ctc_arguments() {
+        let temp = tempfile::tempdir().unwrap();
+        let model = temp.path().join("model.int8.onnx");
+        std::fs::write(&model, b"model").unwrap();
+
+        let arguments = build_fire_red_args(&request(model), Path::new("tokens.txt"))
+            .iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(arguments
+            .iter()
+            .any(|value| value.starts_with("--fire-red-asr-ctc=")));
+        assert!(arguments.iter().any(|value| value == "--model-type=fire_red_asr"));
     }
 }
 

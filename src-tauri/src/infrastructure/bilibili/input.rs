@@ -6,6 +6,8 @@ use url::Url;
 pub enum VideoId {
     Bvid(String),
     Aid(u64),
+    Episode(u64),
+    Season(u64),
     ShortUrl(String),
 }
 
@@ -37,6 +39,27 @@ fn parse_video_id(value: &str) -> Option<VideoId> {
             .ok()
             .filter(|aid| *aid > 0)
             .map(VideoId::Aid);
+    }
+    None
+}
+
+const BANGUMI_EPISODE_PREFIX: &str = "ep";
+const BANGUMI_SEASON_PREFIX: &str = "ss";
+
+fn parse_positive_number(value: &str) -> Option<u64> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    value.parse::<u64>().ok().filter(|id| *id > 0)
+}
+
+/// Parses the bangumi path segment (`ep733316` / `ss28747`).
+fn parse_bangumi_target(segment: &str) -> Option<VideoId> {
+    if let Some(rest) = segment.strip_prefix(BANGUMI_EPISODE_PREFIX) {
+        return parse_positive_number(rest).map(VideoId::Episode);
+    }
+    if let Some(rest) = segment.strip_prefix(BANGUMI_SEASON_PREFIX) {
+        return parse_positive_number(rest).map(VideoId::Season);
     }
     None
 }
@@ -118,18 +141,22 @@ pub fn normalize_input(input: &str) -> Result<NormalizedInput, AppError> {
 
     let video_id = url
         .path_segments()
-        .and_then(|segments| segments.filter(|segment| !segment.is_empty()).next_back())
-        .and_then(parse_video_id)
+        .and_then(|mut segments| segments.rfind(|segment| !segment.is_empty()))
+        .and_then(|segment| parse_video_id(segment).or_else(|| parse_bangumi_target(segment)))
         .ok_or_else(invalid_input)?;
-    let requested_page = match url.query_pairs().find(|(key, _)| key == "p") {
-        Some((_, value)) => Some(
-            value
-                .parse::<u32>()
-                .ok()
-                .filter(|page| *page > 0)
-                .ok_or_else(invalid_input)?,
-        ),
-        None => None,
+    let requested_page = if matches!(video_id, VideoId::Bvid(_) | VideoId::Aid(_)) {
+        match url.query_pairs().find(|(key, _)| key == "p") {
+            Some((_, value)) => Some(
+                value
+                    .parse::<u32>()
+                    .ok()
+                    .filter(|page| *page > 0)
+                    .ok_or_else(invalid_input)?,
+            ),
+            None => None,
+        }
+    } else {
+        None
     };
 
     Ok(NormalizedInput {
@@ -161,6 +188,21 @@ mod tests {
             (
                 "https://b23.tv/abcdef",
                 VideoId::ShortUrl("https://b23.tv/abcdef".into()),
+                None,
+            ),
+            (
+                "https://www.bilibili.com/bangumi/play/ep733316",
+                VideoId::Episode(733316),
+                None,
+            ),
+            (
+                "https://www.bilibili.com/bangumi/play/ss28747?share_source=copy_web",
+                VideoId::Season(28747),
+                None,
+            ),
+            (
+                "https://www.bilibili.com/bangumi/play/ep733316?p=3",
+                VideoId::Episode(733316),
                 None,
             ),
         ];
@@ -195,6 +237,12 @@ mod tests {
             "https://example.com/video/BV1xx411c7BF",
             "https://www.bilibili.com/video/BV1xx411c7BF?p=0",
             "https://www.bilibili.com/video/BV1xx411c7BF?p=oops",
+            "ep733316",
+            "ss28747",
+            "https://www.bilibili.com/bangumi/play/ep0",
+            "https://www.bilibili.com/bangumi/play/ssabc",
+            "https://www.bilibili.com/bangumi/play/ep",
+            "https://www.bilibili.com/bangumi/play/ep733316x",
         ] {
             assert!(
                 normalize_input(input).is_err(),

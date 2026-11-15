@@ -1,6 +1,6 @@
 [package]
 name = "bilicatch"
-version = "0.2.2"
+version = "0.3.0"
 description = "BiliCatch desktop downloader"
 authors = ["BiliCatch contributors"]
 edition = "2021"
@@ -35,6 +35,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-store = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-notification = "2"
+rten = "0.28"
+rten-tensor = "0.28"
+sysinfo = { version = "0.32", default-features = false, features = ["system"] }
 
 [dev-dependencies]
 tempfile = "3"

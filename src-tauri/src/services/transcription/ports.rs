@@ -17,7 +17,7 @@ pub struct TranscriberRequest {
     pub offset_ms: u64,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TranscriberOutput {
     pub detected_language: String,
     pub segments: Vec<TranscriptSegment>,
@@ -35,7 +35,7 @@ pub trait Transcriber: Send + Sync {
     ) -> Result<TranscriberOutput, AppError>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SubtitleLookup {
     Available(TranscriberOutput),
     Unavailable,
@@ -44,7 +44,12 @@ pub enum SubtitleLookup {
 
 #[async_trait]
 pub trait SubtitleProvider: Send + Sync {
-    async fn lookup(&self, bvid: &str, cid: u64) -> SubtitleLookup;
+    async fn lookup(
+        &self,
+        bvid: &str,
+        cid: u64,
+        language: TranscriptionLanguage,
+    ) -> SubtitleLookup;
 }
 
 pub trait DownloadActivityProbe: Send + Sync {

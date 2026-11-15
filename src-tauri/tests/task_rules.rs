@@ -4,7 +4,8 @@ use bilicatch_lib::{
         VideoCodec,
     },
     services::tasks::{
-        actions_for_status, sanitize_audio_filename, sanitize_filename, validate_create_request,
+        actions_for_status, sanitize_audio_filename, sanitize_filename, sanitize_season_filename,
+        validate_create_request,
     },
 };
 
@@ -17,6 +18,10 @@ fn draft(mode: DownloadMode) -> DownloadTaskDraft {
         part_title: "P1".into(),
         video_title: "Example video".into(),
         part_count: 1,
+        source: bilicatch_lib::models::VideoSource::Ugc,
+        container_kind: bilicatch_lib::models::ContainerKind::Video,
+        ep_id: None,
+        group_index: 1,
         mode,
         output_dir: " Downloads ".into(),
         quality_id: Some("80".into()),
@@ -26,6 +31,18 @@ fn draft(mode: DownloadMode) -> DownloadTaskDraft {
         auto_transcribe: false,
         transcription_preset: None,
     }
+}
+
+#[test]
+fn season_file_names_use_the_group_index() {
+    assert_eq!(
+        sanitize_season_filename(2, "第2话", "BV1xx411c7BF", 1, "mp4"),
+        "2_第2话.mp4"
+    );
+    assert_eq!(
+        sanitize_season_filename(1, "   ", "BV1xx411c7BF", 1, "m4a"),
+        "BV1xx411c7BF-P1.m4a"
+    );
 }
 
 #[test]

@@ -13,7 +13,7 @@ use crate::services::auth::context::ValidatedAuthContext;
 
 use super::{
     input::{normalize_input, validate_allowed_https_url},
-    raw::{ApiResponse, NavData, PlayData, ViewData, WbiKey},
+    raw::{ApiResponse, NavData, PgcResponse, PlayData, SeasonData, ViewData, WbiKey},
     wbi::{derive_mixin_key, sign_query},
     VideoId,
 };
@@ -40,6 +40,18 @@ pub(crate) trait BilibiliPort: Send + Sync {
         video_id: &VideoId,
         auth: &ValidatedAuthContext,
     ) -> Result<ViewData, AppError>;
+    async fn fetch_bangumi_season(
+        &self,
+        ep_id: Option<u64>,
+        season_id: Option<u64>,
+        auth: &ValidatedAuthContext,
+    ) -> Result<SeasonData, AppError>;
+    async fn fetch_bangumi_playurl(
+        &self,
+        ep_id: u64,
+        cid: u64,
+        auth: &ValidatedAuthContext,
+    ) -> Result<PlayData, AppError>;
     async fn fetch_wbi_key(&self, auth: &ValidatedAuthContext) -> Result<WbiKey, AppError>;
     async fn fetch_playurl(
         &self,
@@ -71,6 +83,15 @@ impl BilibiliClient {
         &self,
         response: Response,
     ) -> Result<ApiResponse<T>, AppError> {
+        let body = read_bounded_body(response).await?;
+        serde_json::from_slice(&body)
+            .map_err(|_| AppError::internal("Bilibili returned an unsupported response"))
+    }
+
+    async fn decode_pgc<T: DeserializeOwned>(
+        &self,
+        response: Response,
+    ) -> Result<PgcResponse<T>, AppError> {
         let body = read_bounded_body(response).await?;
         serde_json::from_slice(&body)
             .map_err(|_| AppError::internal("Bilibili returned an unsupported response"))
@@ -150,6 +171,7 @@ fn append_video_id(url: &mut url::Url, video_id: &VideoId) {
             query.append_pair("aid", &aid.to_string());
         }
         VideoId::ShortUrl(_) => {}
+        VideoId::Episode(_) | VideoId::Season(_) => {}
     }
 }
 
@@ -232,6 +254,65 @@ impl BilibiliPort for BilibiliClient {
             .ok_or_else(|| AppError::internal("Bilibili metadata is missing"))
     }
 
+    async fn fetch_bangumi_season(
+        &self,
+        ep_id: Option<u64>,
+        season_id: Option<u64>,
+        auth: &ValidatedAuthContext,
+    ) -> Result<SeasonData, AppError> {
+        let url = match (ep_id, season_id) {
+            (Some(ep_id), _) => {
+                format!("https://api.bilibili.com/pgc/view/web/season?ep_id={ep_id}")
+            }
+            (None, Some(season_id)) => {
+                format!("https://api.bilibili.com/pgc/view/web/season?season_id={season_id}")
+            }
+            (None, None) => {
+                return Err(AppError::new(
+                    AppErrorCode::E003,
+                    "Missing bangumi season target",
+                ))
+            }
+        };
+        let response = self
+            .authenticated_get(url, auth)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
+        let envelope: PgcResponse<SeasonData> = self.decode_pgc(response).await?;
+        if envelope.code != 0 {
+            return Err(map_api_error(envelope.code, envelope.message));
+        }
+        envelope
+            .result
+            .ok_or_else(|| AppError::internal("Bilibili season metadata is missing"))
+    }
+
+    async fn fetch_bangumi_playurl(
+        &self,
+        ep_id: u64,
+        cid: u64,
+        auth: &ValidatedAuthContext,
+    ) -> Result<PlayData, AppError> {
+        let url = format!(
+            "https://api.bilibili.com/pgc/player/web/playurl?ep_id={ep_id}&cid={cid}&fnval=4048&fourk=1&qn=127"
+        );
+        let response = self
+            .authenticated_get(url, auth)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
+        let envelope: PgcResponse<PlayData> = self.decode_pgc(response).await?;
+        if envelope.code != 0 {
+            return Err(map_api_error(envelope.code, envelope.message));
+        }
+        let play = envelope
+            .result
+            .ok_or_else(|| AppError::internal("Bilibili media capabilities are missing"))?;
+        play.ensure_playable()?;
+        Ok(play)
+    }
+
     async fn fetch_wbi_key(&self, auth: &ValidatedAuthContext) -> Result<WbiKey, AppError> {
         let response = self
             .authenticated_get("https://api.bilibili.com/x/web-interface/nav", auth)
@@ -265,6 +346,13 @@ impl BilibiliPort for BilibiliClient {
             VideoId::Aid(aid) => parameters.push(("avid".into(), aid.to_string())),
             VideoId::ShortUrl(_) => {
                 return Err(AppError::new(AppErrorCode::E003, "Unresolved short link").into())
+            }
+            VideoId::Episode(_) | VideoId::Season(_) => {
+                return Err(AppError::new(
+                    AppErrorCode::E004,
+                    "Bangumi playback is not available yet",
+                )
+                .into())
             }
         }
         let query = sign_query(&parameters, key, timestamp);

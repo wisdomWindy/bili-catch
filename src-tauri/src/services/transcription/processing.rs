@@ -30,7 +30,7 @@ pub fn merge_segments(chunks: Vec<Vec<TranscriptSegment>>) -> Vec<TranscriptSegm
     let mut merged = Vec::new();
     let mut previous_end = 0;
     for segment in chunks.into_iter().flatten() {
-        let text = segment.text.trim();
+        let text = segment.text.trim().to_owned();
         if text.is_empty() {
             continue;
         }
@@ -41,7 +41,10 @@ pub fn merge_segments(chunks: Vec<Vec<TranscriptSegment>>) -> Vec<TranscriptSegm
             index: merged.len() as u32,
             start_ms,
             end_ms,
-            text: text.into(),
+            text,
+            confidence: segment.confidence,
+            origin: segment.origin,
+            alternates: segment.alternates,
         });
     }
     merged

@@ -1,9 +1,14 @@
+use std::collections::HashSet;
+
 use crate::models::{
-    AppError, AppErrorCode, AudioCapability, AudioFormat, MediaOption, ParseVideoResult,
-    VideoCodec, VideoPart, VideoVariant,
+    AppError, AppErrorCode, AudioCapability, AudioFormat, Availability, ContainerKind, MediaOption,
+    ParseContainer, ParseVideoResult, UnavailableReason, VideoCodec, VideoPart, VideoSource,
+    VideoVariant,
 };
 
-use super::raw::{PlayData, RawPage, ViewData};
+use super::raw::{
+    PlayData, RawEpisode, RawPage, RawSeasonEpisode, RawUgcSeason, SeasonData, ViewData,
+};
 
 fn unavailable(message: impl Into<String>) -> AppError {
     AppError::new(AppErrorCode::E004, message)
@@ -22,14 +27,16 @@ pub(crate) fn select_part(
         .ok_or_else(|| unavailable("The requested video part is unavailable"))
 }
 
-pub(crate) fn adapt_parse_result(
-    view: ViewData,
-    play: PlayData,
-    requested_page: Option<u32>,
-) -> Result<ParseVideoResult, AppError> {
-    select_part(&view, requested_page)?;
-    play.ensure_playable()?;
+pub(crate) struct PlayCapabilities {
+    pub qualities: Vec<MediaOption>,
+    pub codecs: Vec<VideoCodec>,
+    pub video_variants: Vec<VideoVariant>,
+    pub audio_formats: Vec<AudioFormat>,
+    pub audio_bitrates: Vec<MediaOption>,
+    pub audio_capability: AudioCapability,
+}
 
+pub(crate) fn capabilities_from_play(play: &PlayData) -> PlayCapabilities {
     let video_variants = play
         .dash
         .as_ref()
@@ -111,25 +118,7 @@ pub(crate) fn adapt_parse_result(
         audio_formats.push(AudioFormat::Flac);
     }
 
-    Ok(ParseVideoResult {
-        canonical_url: format!("https://www.bilibili.com/video/{}", view.bvid),
-        bvid: view.bvid,
-        aid: view.aid,
-        title: view.title,
-        owner_name: view.owner.name,
-        cover_url: view.pic,
-        duration_seconds: view.duration,
-        requested_page,
-        parts: view
-            .pages
-            .into_iter()
-            .map(|part| VideoPart {
-                cid: part.cid,
-                page: part.page,
-                title: part.part,
-                duration_seconds: part.duration,
-            })
-            .collect(),
+    PlayCapabilities {
         qualities,
         codecs,
         video_variants,
@@ -140,6 +129,283 @@ pub(crate) fn adapt_parse_result(
             lossless_available,
             hi_res_available: lossless_available,
         },
+    }
+}
+
+pub(crate) fn adapt_parse_result(
+    view: ViewData,
+    play: PlayData,
+    requested_page: Option<u32>,
+) -> Result<ParseVideoResult, AppError> {
+    select_part(&view, requested_page)?;
+    play.ensure_playable()?;
+    let capabilities = capabilities_from_play(&play);
+
+    Ok(ParseVideoResult {
+        canonical_url: format!("https://www.bilibili.com/video/{}", view.bvid),
+        bvid: Some(view.bvid.clone()),
+        aid: Some(view.aid),
+        source: VideoSource::Ugc,
+        container: Some(ParseContainer {
+            kind: ContainerKind::Video,
+            id: view.bvid.clone(),
+            title: view.title.clone(),
+            unit_count: u32::try_from(view.pages.len()).unwrap_or(u32::MAX),
+        }),
+        title: view.title,
+        owner_name: view.owner.name,
+        cover_url: view.pic,
+        duration_seconds: view.duration,
+        requested_page,
+        requested_cid: None,
+        parts: {
+            let unit_bvid = view.bvid.clone();
+            let part_count = u32::try_from(view.pages.len()).unwrap_or(u32::MAX);
+            view.pages
+                .into_iter()
+                .map(|part| VideoPart {
+                    cid: part.cid,
+                    bvid: unit_bvid.clone(),
+                    ep_id: None,
+                    page: part.page,
+                    part_count,
+                    group_index: 1,
+                    title: part.part,
+                    duration_seconds: part.duration,
+                    availability: Availability::Playable,
+                    unavailable_reason: None::<UnavailableReason>,
+                })
+                .collect()
+        },
+        qualities: capabilities.qualities,
+        codecs: capabilities.codecs,
+        video_variants: capabilities.video_variants,
+        audio_formats: capabilities.audio_formats,
+        audio_bitrates: capabilities.audio_bitrates,
+        audio_capability: capabilities.audio_capability,
+    })
+}
+
+/// Milliseconds in the PGC payload, seconds everywhere else.
+pub(crate) fn duration_ms_to_seconds(value: u64) -> u64 {
+    value.saturating_add(500) / 1000
+}
+
+fn collection_pages(episode: &RawSeasonEpisode) -> Vec<RawPage> {
+    if !episode.pages.is_empty() {
+        return episode.pages.clone();
+    }
+    vec![RawPage {
+        cid: episode.cid,
+        page: 1,
+        part: episode.title.clone(),
+        duration: episode.arc.as_ref().map_or(0, |arc| arc.duration),
+    }]
+}
+
+pub(crate) fn adapt_collection_units(season: &RawUgcSeason) -> Vec<VideoPart> {
+    let mut units = Vec::new();
+    let mut seen = HashSet::new();
+    let mut group_index = 0u32;
+    for section in &season.sections {
+        for episode in &section.episodes {
+            if episode.cid == 0 && episode.pages.is_empty() {
+                continue;
+            }
+            group_index += 1;
+            let pages = collection_pages(episode);
+            let part_count = u32::try_from(pages.len()).unwrap_or(u32::MAX);
+            for page in pages {
+                if page.cid == 0 || !seen.insert(page.cid) {
+                    continue;
+                }
+                units.push(VideoPart {
+                    cid: page.cid,
+                    bvid: episode.bvid.clone(),
+                    ep_id: None,
+                    page: page.page.max(1),
+                    part_count,
+                    group_index,
+                    title: page.part,
+                    duration_seconds: page.duration,
+                    availability: Availability::Playable,
+                    unavailable_reason: None,
+                });
+            }
+        }
+    }
+    units
+}
+
+fn episode_title(episode: &RawEpisode) -> String {
+    if episode.long_title.trim().is_empty() {
+        episode.title.clone()
+    } else {
+        episode.long_title.clone()
+    }
+}
+
+pub(crate) fn bangumi_episode_availability(
+    episode: &RawEpisode,
+) -> (Availability, Option<UnavailableReason>) {
+    let allow_download = episode
+        .rights
+        .as_ref()
+        .map_or(1, |rights| rights.allow_download);
+    if allow_download == 0 {
+        return (
+            Availability::Unavailable,
+            Some(UnavailableReason::DownloadDisabled),
+        );
+    }
+    if episode.badge.contains("大会员") || episode.badge.contains("会员") {
+        return (
+            Availability::Unavailable,
+            Some(UnavailableReason::VipRequired),
+        );
+    }
+    if episode.badge.contains("付费") {
+        return (Availability::Unavailable, Some(UnavailableReason::Paid));
+    }
+    (Availability::Playable, None)
+}
+
+pub(crate) fn adapt_bangumi_units(season: &SeasonData) -> Vec<VideoPart> {
+    let mut units = Vec::new();
+    let mut seen = HashSet::new();
+    let mut group_index = 0u32;
+    for episode in &season.episodes {
+        if episode.section_type != 0 || episode.cid == 0 || !seen.insert(episode.cid) {
+            continue;
+        }
+        group_index += 1;
+        let (availability, unavailable_reason) = bangumi_episode_availability(episode);
+        units.push(VideoPart {
+            cid: episode.cid,
+            bvid: episode.bvid.clone(),
+            ep_id: Some(episode.ep_id),
+            page: 1,
+            part_count: 1,
+            group_index,
+            title: episode_title(episode),
+            duration_seconds: duration_ms_to_seconds(episode.duration),
+            availability,
+            unavailable_reason,
+        });
+    }
+    units
+}
+
+pub(crate) fn adapt_collection_result(
+    view: ViewData,
+    play: PlayData,
+    requested_page: Option<u32>,
+) -> Result<ParseVideoResult, AppError> {
+    let season = view
+        .ugc_season
+        .clone()
+        .ok_or_else(|| unavailable("The collection metadata is missing"))?;
+    let requested_cid = requested_page
+        .and_then(|page| view.pages.iter().find(|part| part.page == page))
+        .map(|part| part.cid);
+    let mut result = adapt_parse_result(view, play, requested_page)?;
+    let units = adapt_collection_units(&season);
+    if units.is_empty() {
+        return Err(unavailable("The collection has no available videos"));
+    }
+    if !season.title.is_empty() {
+        result.title = season.title;
+    }
+    if !season.cover.is_empty() {
+        result.cover_url = season.cover;
+    }
+    result.container = Some(ParseContainer {
+        kind: ContainerKind::Season,
+        id: season.id.to_string(),
+        title: result.title.clone(),
+        unit_count: u32::try_from(units.len()).unwrap_or(u32::MAX),
+    });
+    result.parts = units;
+    result.requested_cid = requested_cid;
+    Ok(result)
+}
+
+pub(crate) fn adapt_bangumi_result(
+    season: SeasonData,
+    requested_ep: Option<u64>,
+    play: Option<PlayData>,
+) -> Result<ParseVideoResult, AppError> {
+    let units = adapt_bangumi_units(&season);
+    if units.is_empty() {
+        return Err(unavailable("The season has no playable episodes"));
+    }
+    let capabilities = play
+        .map(|play| capabilities_from_play(&play))
+        .unwrap_or(PlayCapabilities {
+            qualities: Vec::new(),
+            codecs: Vec::new(),
+            video_variants: Vec::new(),
+            audio_formats: Vec::new(),
+            audio_bitrates: Vec::new(),
+            audio_capability: AudioCapability {
+                max_lossy_kbps: None,
+                lossless_available: false,
+                hi_res_available: false,
+            },
+        });
+    let matched = requested_ep.and_then(|ep_id| {
+        season
+            .episodes
+            .iter()
+            .find(|episode| episode.ep_id == ep_id)
+    });
+    let (canonical_url, bvid, aid, duration_seconds) = match (requested_ep, matched) {
+        (Some(ep_id), Some(episode)) => (
+            format!("https://www.bilibili.com/bangumi/play/ep{ep_id}"),
+            (!episode.bvid.is_empty()).then(|| episode.bvid.clone()),
+            (episode.aid > 0).then_some(episode.aid),
+            duration_ms_to_seconds(episode.duration),
+        ),
+        _ => (
+            format!(
+                "https://www.bilibili.com/bangumi/play/ss{}",
+                season.season_id
+            ),
+            None,
+            None,
+            0,
+        ),
+    };
+    let requested_cid = requested_ep.and_then(|ep_id| {
+        units
+            .iter()
+            .find(|unit| unit.ep_id == Some(ep_id))
+            .map(|unit| unit.cid)
+    });
+    Ok(ParseVideoResult {
+        canonical_url,
+        bvid,
+        aid,
+        source: VideoSource::Bangumi,
+        container: Some(ParseContainer {
+            kind: ContainerKind::Season,
+            id: season.season_id.to_string(),
+            title: season.title.clone(),
+            unit_count: u32::try_from(units.len()).unwrap_or(u32::MAX),
+        }),
+        title: season.title,
+        owner_name: String::new(),
+        cover_url: season.cover,
+        duration_seconds,
+        requested_page: None,
+        requested_cid,
+        parts: units,
+        qualities: capabilities.qualities,
+        codecs: capabilities.codecs,
+        video_variants: capabilities.video_variants,
+        audio_formats: capabilities.audio_formats,
+        audio_bitrates: capabilities.audio_bitrates,
+        audio_capability: capabilities.audio_capability,
     })
 }
 
@@ -158,8 +424,11 @@ fn codec_for(value: &str) -> Option<VideoCodec> {
 #[cfg(test)]
 mod tests {
     use super::adapt_parse_result;
+    use super::duration_ms_to_seconds;
     use crate::infrastructure::bilibili::raw::{ApiResponse, PlayData, ViewData};
-    use crate::models::{AudioFormat, VideoCodec, VideoVariant};
+    use crate::models::{
+        AudioFormat, Availability, ContainerKind, VideoCodec, VideoSource, VideoVariant,
+    };
 
     #[test]
     fn maps_private_api_fixtures_to_the_stable_contract() {
@@ -174,9 +443,19 @@ mod tests {
         let result = adapt_parse_result(view.data.unwrap(), play.data.unwrap(), Some(2))
             .expect("fixtures should adapt");
 
-        assert_eq!(result.bvid, "BV1xx411c7BF");
+        assert_eq!(result.bvid.as_deref(), Some("BV1xx411c7BF"));
         assert_eq!(result.requested_page, Some(2));
+        assert_eq!(result.requested_cid, None);
         assert_eq!(result.parts.len(), 2);
+        assert_eq!(result.source, VideoSource::Ugc);
+        let container = result.container.expect("container should be present");
+        assert_eq!(container.kind, ContainerKind::Video);
+        assert_eq!(container.unit_count, 2);
+        assert_eq!(result.parts[0].bvid, "BV1xx411c7BF");
+        assert_eq!(result.parts[0].part_count, 2);
+        assert_eq!(result.parts[0].group_index, 1);
+        assert_eq!(result.parts[0].availability, Availability::Playable);
+        assert_eq!(result.parts[0].unavailable_reason, None);
         assert_eq!(result.qualities[0].id, "120");
         assert!(result.qualities[0].requires_login);
         assert!(!result.qualities[1].requires_login);
@@ -214,6 +493,14 @@ mod tests {
             vec![AudioFormat::M4a, AudioFormat::Mp3]
         );
         assert_eq!(result.audio_bitrates[0].id, "192");
+    }
+
+    #[test]
+    fn converts_pgc_milliseconds_to_rounded_seconds() {
+        assert_eq!(duration_ms_to_seconds(0), 0);
+        assert_eq!(duration_ms_to_seconds(499), 0);
+        assert_eq!(duration_ms_to_seconds(500), 1);
+        assert_eq!(duration_ms_to_seconds(1_203_160), 1203);
     }
 
     #[test]

@@ -14,13 +14,19 @@ function formatTime(milliseconds: number) {
   const date = new Date(milliseconds);
   return date.toISOString().slice(11, 23);
 }
+
+function segmentClass(segment: { confidence?: number; alternates?: unknown[] }) {
+  if (segment.alternates && segment.alternates.length > 0) return "segment-row is-conflict";
+  if (segment.confidence !== undefined && segment.confidence < 0.55) return "segment-row is-low";
+  return "segment-row";
+}
 </script>
 
 <template>
   <section class="transcribe-section transcript-editor">
-    <header><Check :size="19" aria-hidden="true" /><h2>{{ $t("transcribe.result.title") }}</h2><span>{{ result.detectedLanguage }}</span></header>
+    <header><Check :size="19" aria-hidden="true" /><h2>{{ $t("transcribe.result.title") }}</h2><span>{{ result.detectedLanguage }}</span><span v-if="result.pipeline?.reviewRecommended" class="pipeline-hint">{{ $t("transcribe.result.reviewRecommended") }}</span></header>
     <div class="segment-list">
-      <label v-for="(segment, index) in result.segments" :key="segment.index" class="segment-row">
+      <label v-for="(segment, index) in result.segments" :key="segment.index" :class="segmentClass(segment)" :title="segment.alternates?.length ? $t('transcribe.result.conflict') : (segment.confidence ?? 1) < 0.55 ? $t('transcribe.result.lowConfidence') : undefined">
         <span>{{ formatTime(segment.startMs) }}</span>
         <textarea v-model="drafts[index]" rows="2" />
       </label>
@@ -37,3 +43,22 @@ function formatTime(milliseconds: number) {
     </footer>
   </section>
 </template>
+
+<style scoped>
+.pipeline-hint {
+  margin-left: auto;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warning-color, #e6a23c) 18%, transparent);
+  color: var(--warning-color, #e6a23c);
+}
+
+.segment-row.is-low textarea {
+  border-left: 3px solid var(--warning-color, #e6a23c);
+}
+
+.segment-row.is-conflict textarea {
+  border-left: 3px solid var(--danger-color, #f56c6c);
+}
+</style>

@@ -10,8 +10,8 @@ pub use app_error::{AppError, AppErrorCode};
 pub use audio::AudioOutputProfile;
 pub use auth::{AuthAccount, AuthSnapshot, AuthStateEvent, AuthStatus};
 pub use parse::{
-    AudioCapability, AudioFormat, MediaOption, ParseVideoResult, VideoCodec, VideoPart,
-    VideoVariant,
+    AudioCapability, AudioFormat, Availability, ContainerKind, MediaOption, ParseContainer,
+    ParseVideoResult, UnavailableReason, VideoCodec, VideoPart, VideoSource, VideoVariant,
 };
 pub use settings::{
     CloseBehavior, SettingsDocument, SettingsPatch, SettingsSnapshot, SettingsValues,
@@ -25,12 +25,13 @@ pub use task::{
 };
 pub use transcription::{
     AsrModel, AsrModelId, AsrModelListSnapshot, ControlTranscribeTaskRequest,
-    CreateTranscribeTaskRequest, CreateTranscribeTaskResult, ExportTranscriptRequest,
-    ExportTranscriptResult, GpuMode, InspectTranscriptionSourceRequest, MediaKind, MediaSourceInfo,
-    ModelDownloadProgressEvent, ModelDownloadState, ModelRequest, SaveTranscriptEditsRequest,
-    TaskIdRequest, TranscribeTask, TranscribeTaskAction, TranscribeTaskListSnapshot,
-    TranscribeTaskStatus, TranscriptFormat, TranscriptResult, TranscriptSegment,
-    TranscriptionLanguage, TranscriptionOptions, TranscriptionProgress, TranscriptionProgressEvent,
+    CreateTranscribeTaskRequest, CreateTranscribeTaskResult, EmbeddedSubtitleTrack,
+    ExportTranscriptRequest, ExportTranscriptResult, GpuMode, InspectTranscriptionSourceRequest,
+    MediaKind, MediaSourceInfo, ModelDownloadProgressEvent, ModelDownloadState, ModelRequest,
+    PipelineReport, SaveTranscriptEditsRequest, SegmentAlternate, TaskIdRequest, TranscribeTask,
+    TranscribeTaskAction, TranscribeTaskListSnapshot, TranscribeTaskStatus, TranscriptFormat,
+    TranscriptOrigin, TranscriptResult, TranscriptSegment, TranscriptionLanguage,
+    TranscriptionOptions, TranscriptionProgress, TranscriptionProgressEvent,
     TranscriptionRemovedEvent, TranscriptionSource,
 };
 

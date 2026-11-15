@@ -16,6 +16,9 @@ describe("transcription contracts", () => {
       "medium",
       "large-v3",
       "fire-red-asr2",
+      "fire-red-asr2-aed",
+      "fire-red-asr2-llm",
+      "qwen3-asr",
     ]);
     expect(TRANSCRIPT_FORMATS).toEqual(["txt", "srt", "vtt", "json", "markdown"]);
     expect(TRANSCRIBE_TASK_STATUSES).toEqual([

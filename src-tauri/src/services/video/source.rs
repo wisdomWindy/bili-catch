@@ -2,7 +2,7 @@ use async_trait::async_trait;
 
 use crate::{
     infrastructure::bilibili::validate_media_url,
-    models::{AppError, AppErrorCode, DownloadMode, VideoCodec},
+    models::{AppError, AppErrorCode, DownloadMode, VideoCodec, VideoSource},
     services::download::DownloadProgress,
     services::download::{validate_media_source_kind, MediaSourceCandidate},
 };
@@ -42,6 +42,8 @@ pub struct VideoSourceCandidate {
 pub struct VideoSourceRequest {
     pub bvid: String,
     pub cid: u64,
+    pub source: VideoSource,
+    pub ep_id: Option<u64>,
     pub mode: DownloadMode,
     pub quality_id: String,
     pub codec: VideoCodec,

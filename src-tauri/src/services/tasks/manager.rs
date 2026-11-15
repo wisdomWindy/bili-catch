@@ -8,16 +8,17 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use crate::{
     infrastructure::tasks::{PersistedTaskFile, StoredTaskRecord},
     models::{
-        AppError, BatchTaskFailure, BatchTaskResult, ClearTasksResult, CreateDownloadTasksRequest,
-        CreateTasksResult, DownloadMode, DownloadTask, OpenTarget, TaskAction, TaskControlRequest,
-        TaskListSnapshot, TaskProgressEvent, TaskRemovedEvent, TaskStatus,
+        AppError, BatchTaskFailure, BatchTaskResult, ClearTasksResult, ContainerKind,
+        CreateDownloadTasksRequest, CreateTasksResult, DownloadMode, DownloadTask, OpenTarget,
+        TaskAction, TaskControlRequest, TaskListSnapshot, TaskProgressEvent, TaskRemovedEvent,
+        TaskStatus,
     },
 };
 
 use super::{
     coalescing::ProgressCoalescer, filename::audio_extension, sanitize_audio_filename,
-    sanitize_filename, validate_create_request, TaskCleanerPort, TaskEventSink, TaskExecutionSpec,
-    TaskSettingsPort, TaskStorePort,
+    sanitize_filename, sanitize_season_filename, validate_create_request, TaskCleanerPort,
+    TaskEventSink, TaskExecutionSpec, TaskSettingsPort, TaskStorePort,
 };
 
 pub struct TaskManager {
@@ -106,18 +107,27 @@ impl TaskManager {
                     .unwrap_or("m4a"),
                 DownloadMode::VideoAudio | DownloadMode::VideoOnly => "mp4",
             };
-            let file_name = match draft.mode {
-                DownloadMode::AudioOnly => sanitize_audio_filename(
-                    &draft.video_title,
+            let file_name = match draft.container_kind {
+                ContainerKind::Season => sanitize_season_filename(
+                    draft.group_index,
                     &draft.part_title,
                     &draft.bvid,
                     draft.page,
-                    draft.part_count,
                     extension,
                 ),
-                DownloadMode::VideoAudio | DownloadMode::VideoOnly => {
-                    sanitize_filename(&draft.part_title, &draft.bvid, draft.page, extension)
-                }
+                ContainerKind::Video => match draft.mode {
+                    DownloadMode::AudioOnly => sanitize_audio_filename(
+                        &draft.video_title,
+                        &draft.part_title,
+                        &draft.bvid,
+                        draft.page,
+                        draft.part_count,
+                        extension,
+                    ),
+                    DownloadMode::VideoAudio | DownloadMode::VideoOnly => {
+                        sanitize_filename(&draft.part_title, &draft.bvid, draft.page, extension)
+                    }
+                },
             };
             let task = DownloadTask {
                 id: format!("{}:{index}", validated.request_id),
@@ -131,6 +141,11 @@ impl TaskManager {
                 cid: draft.cid,
                 page: draft.page,
                 part_title: draft.part_title,
+                part_count: draft.part_count,
+                source: draft.source,
+                container_kind: draft.container_kind,
+                ep_id: draft.ep_id,
+                group_index: draft.group_index,
                 mode: draft.mode,
                 quality_id: draft.quality_id,
                 codec: draft.codec,

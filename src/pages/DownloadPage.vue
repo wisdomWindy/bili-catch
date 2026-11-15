@@ -146,7 +146,10 @@ onBeforeUnmount(() => {
         <PartSelector
           :parts="store.result.parts"
           :selected-cids="store.selectedCids"
+          :source="store.result.source"
+          :container="store.result.container"
           @toggle="store.togglePart"
+          @toggle-group="store.toggleGroup"
           @select-all="store.selectAll"
           @invert="store.invertSelection"
         />

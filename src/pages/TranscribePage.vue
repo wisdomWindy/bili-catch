@@ -43,7 +43,8 @@ const form = reactive<TranscriptionOptions>({
 });
 
 const selectedModel = computed(() => store.modelsById[form.modelId]);
-const fireRedSelected = computed(() => form.modelId === "fire-red-asr2");
+const fireRedSelected = computed(() => form.modelId === "fire-red-asr2" || form.modelId === "fire-red-asr2-aed" || form.modelId === "fire-red-asr2-llm");
+const cpuOnlySelected = computed(() => fireRedSelected.value || form.modelId === "qwen3-asr");
 const selectedTask = computed(() => selectedTaskId.value ? store.byId[selectedTaskId.value] : null);
 const selectedResult = computed(() => selectedTaskId.value ? store.resultsByTaskId[selectedTaskId.value] : null);
 const canStart = computed(() => Boolean(sourceInfo.value && selectedModel.value?.valid && form.outputDirectory.trim() && !store.pending.create));
@@ -191,7 +192,7 @@ async function retranscribeTask(task = selectedTask.value) {
           <label>{{ t("transcribe.options.model") }}<select v-model="form.modelId"><option v-for="model in store.models" :key="model.id" :value="model.id">{{ model.displayName }}{{ model.valid ? "" : ` (${t('transcribe.models.notInstalled')})` }}</option></select></label>
           <label>{{ t("transcribe.options.language") }}<select v-model="form.language"><option value="auto">{{ t("settings.options.transcriptionLanguage.auto") }}</option><option value="zh">{{ t("settings.options.transcriptionLanguage.zh") }}</option><option value="zh-TW">{{ t("settings.options.transcriptionLanguage.zhTW") }}</option><option value="en">{{ t("settings.options.transcriptionLanguage.en") }}</option><option value="ja" :disabled="fireRedSelected">{{ t("settings.options.transcriptionLanguage.ja") }}</option><option value="ko" :disabled="fireRedSelected">{{ t("settings.options.transcriptionLanguage.ko") }}</option></select></label>
           <label>{{ t("transcribe.options.format") }}<select v-model="form.outputFormat"><option value="txt">TXT</option><option value="srt">SRT</option><option value="vtt">VTT</option><option value="json">JSON</option><option value="markdown">Markdown</option></select></label>
-          <label>{{ t("transcribe.options.gpu") }}<select v-model="form.gpuMode"><option value="auto">{{ t("settings.options.gpuMode.auto") }}</option><option value="enabled" :disabled="fireRedSelected">{{ t("settings.options.gpuMode.enabled") }}</option><option value="disabled">{{ t("settings.options.gpuMode.disabled") }}</option></select></label>
+          <label>{{ t("transcribe.options.gpu") }}<select v-model="form.gpuMode"><option value="auto">{{ t("settings.options.gpuMode.auto") }}</option><option value="enabled" :disabled="cpuOnlySelected">{{ t("settings.options.gpuMode.enabled") }}</option><option value="disabled">{{ t("settings.options.gpuMode.disabled") }}</option></select></label>
           <label class="option-wide">{{ t("transcribe.options.outputDirectory") }}<input v-model="form.outputDirectory" /></label>
           <label class="check-option"><input v-model="form.timestamps" type="checkbox" :disabled="['srt','vtt','json'].includes(form.outputFormat)" />{{ t("transcribe.options.timestamps") }}</label>
           <label class="check-option"><input v-model="form.punctuation" type="checkbox" />{{ t("transcribe.options.punctuation") }}</label>

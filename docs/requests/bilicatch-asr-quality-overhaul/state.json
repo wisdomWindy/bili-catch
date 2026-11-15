@@ -1,0 +1,37 @@
+{
+  "request_id": "bilicatch-asr-quality-overhaul",
+  "source": {
+    "type": "direct_instruction",
+    "reference": "用户实测反馈“存在错别字”“完全与音频内容无关” + 豆包 probe→video-ocr→asr-subtitles 三级信源参照 + “只考虑效果”取向确认 + “按建议来”（2026-11-14 / 2026-11-15）"
+  },
+  "stage": "execute",
+  "status": "in_progress",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-asr-quality-overhaul/request.md",
+    "architecture_design": "docs/requests/bilicatch-asr-quality-overhaul/design/solution.md",
+    "spec": "docs/requests/bilicatch-asr-quality-overhaul/spec/spec.md",
+    "clarifications": "docs/requests/bilicatch-asr-quality-overhaul/spec/clarifications.md",
+    "plan": "docs/requests/bilicatch-asr-quality-overhaul/plan/plan.md",
+    "task_board": "docs/requests/bilicatch-asr-quality-overhaul/plan/task-board.md",
+    "changelog": "docs/requests/bilicatch-asr-quality-overhaul/execution/changelog.md"
+  },
+  "approvals": {
+    "design_approved": true,
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "speed_profile": {
+    "level": "S3 structural",
+    "reason": "跨媒体探测、预处理、字幕抽取、OCR、ASR 适配、模型仓库、运行时编排与前端契约的结构性改造。",
+    "context_budget": "wide",
+    "artifact_density": "full"
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 13,
+    "state": "running",
+    "last_completed_stage": "execute",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}

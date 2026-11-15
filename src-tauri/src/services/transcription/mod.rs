@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod export;
+pub mod fusion;
 pub mod ports;
 pub mod processing;
 pub mod scheduler;

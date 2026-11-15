@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use bilicatch_lib::{
     infrastructure::transcription::model_repository::{
-        official_model_manifest, FileModelRepository, ModelDownloadCancellation, ModelManifestEntry,
+        official_model_manifest, FileModelRepository, ModelDownloadCancellation, ModelFile,
+        ModelManifestEntry,
     },
     models::{AppErrorCode, AsrModelId},
 };
@@ -19,6 +20,16 @@ fn fixture_manifest() -> Vec<ModelManifestEntry> {
             .into(),
         recommended_for: "test".into(),
         capabilities: vec!["multilingual".into()],
+        directory: None,
+        files: vec![ModelFile {
+            name: "ggml-tiny.bin".into(),
+            size_bytes: 3,
+            sha256: "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".into(),
+            url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin".into(),
+            mirror_url: Some(
+                "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin".into(),
+            ),
+        }],
     }]
 }
 
@@ -39,6 +50,9 @@ fn official_manifest_pins_all_approved_models() {
             AsrModelId::Medium,
             AsrModelId::LargeV3,
             AsrModelId::FireRedAsr2,
+            AsrModelId::FireRedAsr2Aed,
+            AsrModelId::FireRedAsr2Llm,
+            AsrModelId::Qwen3Asr,
         ]
     );
     assert_eq!(entries[0].size_bytes, 77_691_713);

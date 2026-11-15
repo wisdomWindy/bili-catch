@@ -1,0 +1,27 @@
+PP-OCRv4 recognition model
+=========================
+
+Source: PaddleOCR (https://github.com/PaddlePaddle/PaddleOCR)
+Model:  ch_PP-OCRv4_rec_infer.onnx
+Mirror: https://huggingface.co/SWHL/RapidOCR (PP-OCRv4/ch_PP-OCRv4_rec_infer.onnx)
+
+PaddleOCR is licensed under the Apache License, Version 2.0.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Character dictionary
+--------------------
+
+File: ppocr_keys_v1.txt
+Source: PaddleOCR repository (ppocr/utils/ppocr_keys_v1.txt)
+
+The dictionary is distributed under the same Apache License, Version 2.0.
+
+Modifications
+-------------
+
+None. Files are bundled unmodified and verified by SHA-256 at build time:
+
+  pp-ocrv4-rec.onnx  48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b
+  ppocr_keys_v1.txt  a1c84d9bdb9ab29043c58896224d32941783eb821629618416dcb08f12886492

@@ -12,7 +12,7 @@ use tokio::{io::AsyncReadExt, process::Command};
 
 use crate::{
     infrastructure::audio::FfmpegLocator,
-    models::{AppError, AppErrorCode, MediaKind, MediaSourceInfo},
+    models::{AppError, AppErrorCode, EmbeddedSubtitleTrack, MediaKind, MediaSourceInfo},
     services::audio::{ProcessControl, ProcessControlState},
 };
 
@@ -49,7 +49,7 @@ pub struct FfmpegPreprocessRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FfmpegRunOutput {
-    Completed { stderr: String },
+    Completed { stdout: Vec<u8>, stderr: String },
     Cancelled,
 }
 
@@ -105,7 +105,7 @@ impl FfmpegTranscriptionPreprocessor {
             .run(&self.executable, arguments, control)
             .await?;
         let stderr = match output {
-            FfmpegRunOutput::Completed { stderr } => stderr,
+            FfmpegRunOutput::Completed { stderr, .. } => stderr,
             FfmpegRunOutput::Cancelled => {
                 return Err(preprocess_error(
                     "SOURCE_INSPECTION_CANCELLED",
@@ -134,6 +134,8 @@ impl FfmpegTranscriptionPreprocessor {
             .unwrap_or_default()
             .to_ascii_lowercase();
 
+        let probe = parse_stream_probe(&stderr);
+
         Ok(MediaSourceInfo {
             file_name: file_name.into(),
             path: source_path.to_string_lossy().into_owned(),
@@ -141,6 +143,14 @@ impl FfmpegTranscriptionPreprocessor {
             size_bytes: metadata.len(),
             media_kind,
             format,
+            width: probe.width,
+            height: probe.height,
+            audio_codec: probe.audio_codec,
+            audio_channels: probe.audio_channels,
+            has_video_track: probe.has_video_track,
+            embedded_subtitles: probe.embedded_subtitles,
+            // 硬字幕抽样在 T11 接入；在此之前一律视为未检测到，路由会退回音频 ASR。
+            hard_subtitle_detected: false,
         })
     }
 
@@ -187,6 +197,117 @@ impl FfmpegTranscriptionPreprocessor {
                 let _ = fs::remove_dir_all(&workspace);
                 Err(error)
             }
+        }
+    }
+
+    pub async fn extract_subtitle(
+        &self,
+        source_path: &Path,
+        track_index: u32,
+        control: ProcessControl,
+    ) -> Result<Vec<u8>, AppError> {
+        validate_source(source_path)?;
+        let arguments = vec![
+            "-nostdin".into(),
+            "-hide_banner".into(),
+            "-loglevel".into(),
+            "error".into(),
+            "-y".into(),
+            "-i".into(),
+            source_path.as_os_str().to_owned(),
+            "-map".into(),
+            format!("0:s:{track_index}").into(),
+            "-f".into(),
+            "srt".into(),
+            "-".into(),
+        ];
+        match self
+            .runner
+            .run(&self.executable, arguments, control)
+            .await?
+        {
+            FfmpegRunOutput::Completed { stdout, .. } => Ok(stdout),
+            FfmpegRunOutput::Cancelled => Err(preprocess_error(
+                "SUBTITLE_EXTRACTION_CANCELLED",
+                "Subtitle extraction was cancelled",
+            )),
+        }
+    }
+
+    /// 用 ffmpeg 的 silencedetect 找到静音区间中点，作为分块边界候选。
+    pub async fn detect_silence(
+        &self,
+        source_path: &Path,
+        control: ProcessControl,
+    ) -> Result<Vec<f64>, AppError> {
+        validate_source(source_path)?;
+        let arguments = vec![
+            "-nostdin".into(),
+            "-hide_banner".into(),
+            "-nostats".into(),
+            "-i".into(),
+            source_path.as_os_str().to_owned(),
+            "-map".into(),
+            "0:a:0".into(),
+            "-af".into(),
+            "silencedetect=noise=-35dB:d=0.4".into(),
+            "-f".into(),
+            "null".into(),
+            "-".into(),
+        ];
+        match self
+            .runner
+            .run(&self.executable, arguments, control)
+            .await?
+        {
+            FfmpegRunOutput::Completed { stderr, .. } => Ok(parse_silence_points(&stderr)),
+            FfmpegRunOutput::Cancelled => Err(preprocess_error(
+                "SILENCE_DETECTION_CANCELLED",
+                "Silence detection was cancelled",
+            )),
+        }
+    }
+
+    /// 抽取灰度帧用于硬字幕 OCR。`fps` 由调用方按视频时长给出，避免长视频占用过多内存。
+    pub async fn extract_gray_frames(
+        &self,
+        source_path: &Path,
+        width: u32,
+        height: u32,
+        fps: f64,
+        max_frames: u32,
+        control: ProcessControl,
+    ) -> Result<Vec<u8>, AppError> {
+        validate_source(source_path)?;
+        let arguments = vec![
+            "-nostdin".into(),
+            "-hide_banner".into(),
+            "-loglevel".into(),
+            "error".into(),
+            "-y".into(),
+            "-i".into(),
+            source_path.as_os_str().to_owned(),
+            "-an".into(),
+            "-vf".into(),
+            format!("fps={fps},scale={width}:{height}").into(),
+            "-pix_fmt".into(),
+            "gray".into(),
+            "-frames:v".into(),
+            max_frames.to_string().into(),
+            "-f".into(),
+            "rawvideo".into(),
+            "-".into(),
+        ];
+        match self
+            .runner
+            .run(&self.executable, arguments, control)
+            .await?
+        {
+            FfmpegRunOutput::Completed { stdout, .. } => Ok(stdout),
+            FfmpegRunOutput::Cancelled => Err(preprocess_error(
+                "FRAME_EXTRACTION_CANCELLED",
+                "Frame extraction was cancelled",
+            )),
         }
     }
 
@@ -265,7 +386,7 @@ impl TranscriptionFfmpegRunner for TokioTranscriptionFfmpegRunner {
         let mut child = command
             .args(arguments)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
+            .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
             .spawn()
@@ -275,6 +396,13 @@ impl TranscriptionFfmpegRunner for TokioTranscriptionFfmpegRunner {
                     "The bundled media processor could not be started",
                 )
             })?;
+        let mut stdout = child.stdout.take().ok_or_else(|| {
+            preprocess_error("FFMPEG_PIPE_FAILED", "FFmpeg output is unavailable")
+        })?;
+        let stdout_reader = tokio::spawn(async move {
+            let mut bytes = Vec::new();
+            stdout.read_to_end(&mut bytes).await.map(|_| bytes)
+        });
         let mut stderr = child.stderr.take().ok_or_else(|| {
             preprocess_error("FFMPEG_PIPE_FAILED", "FFmpeg diagnostics are unavailable")
         })?;
@@ -290,6 +418,7 @@ impl TranscriptionFfmpegRunner for TokioTranscriptionFfmpegRunner {
                 })?;
                 let _ = child.wait().await;
                 stderr_reader.abort();
+                stdout_reader.abort();
                 return Ok(FfmpegRunOutput::Cancelled);
             }
             match tokio::time::timeout(Duration::from_millis(50), child.wait()).await {
@@ -301,6 +430,10 @@ impl TranscriptionFfmpegRunner for TokioTranscriptionFfmpegRunner {
                 Err(_) => continue,
             }
         };
+        let stdout = stdout_reader
+            .await
+            .map_err(|_| preprocess_error("FFMPEG_PIPE_FAILED", "FFmpeg output is unavailable"))?
+            .map_err(|_| preprocess_error("FFMPEG_PIPE_FAILED", "FFmpeg output is unavailable"))?;
         let stderr = stderr_reader
             .await
             .map_err(|_| {
@@ -317,6 +450,7 @@ impl TranscriptionFfmpegRunner for TokioTranscriptionFfmpegRunner {
             ));
         }
         Ok(FfmpegRunOutput::Completed {
+            stdout,
             stderr: diagnostics,
         })
     }
@@ -445,6 +579,143 @@ pub fn build_preprocess_args(
     ]
 }
 
+/// `ffmpeg -i` 能提供的信源能力。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StreamProbe {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub audio_codec: Option<String>,
+    pub audio_channels: Option<u16>,
+    pub has_video_track: bool,
+    pub embedded_subtitles: Vec<EmbeddedSubtitleTrack>,
+}
+
+/// 从 `ffmpeg -hide_banner -i` 的 stderr 中提取容器与流信息。
+pub fn parse_stream_probe(stderr: &str) -> StreamProbe {
+    let mut probe = StreamProbe::default();
+    for line in stderr.lines() {
+        let line = line.trim_start();
+        let Some(rest) = line.strip_prefix("Stream #0:") else {
+            continue;
+        };
+        let Some((header, body)) = rest.split_once(": ") else {
+            continue;
+        };
+        let index = header
+            .split(['[', '('])
+            .next()
+            .and_then(|value| value.trim().parse::<u32>().ok());
+        let language = header
+            .split_once('(')
+            .and_then(|(_, tail)| tail.split_once(')'))
+            .map(|(value, _)| value.trim().to_owned())
+            .filter(|value| !value.is_empty() && value != "und" && value != "unknown");
+
+        if let Some(video) = body.strip_prefix("Video: ") {
+            // 封面图（attached pic）不是真正的视频轨，不能让它把纯音频文件路由到 OCR。
+            if body.contains("attached pic") {
+                continue;
+            }
+            if let Some((width, height)) = parse_resolution(video) {
+                probe.width = Some(width);
+                probe.height = Some(height);
+                probe.has_video_track = true;
+            }
+            continue;
+        }
+        if let Some(audio) = body.strip_prefix("Audio: ") {
+            if probe.audio_codec.is_none() {
+                probe.audio_codec = parse_codec(audio);
+                probe.audio_channels = parse_channels(audio);
+            }
+            continue;
+        }
+        if let Some(subtitle) = body.strip_prefix("Subtitle: ") {
+            if let Some(index) = index {
+                probe.embedded_subtitles.push(EmbeddedSubtitleTrack {
+                    index,
+                    codec: parse_codec(subtitle).unwrap_or_else(|| "unknown".into()),
+                    language: language.clone(),
+                    title: None,
+                });
+            }
+        }
+    }
+    probe
+}
+
+/// 从 `silencedetect` 日志中取出每段静音的中点，作为分块边界候选。
+pub fn parse_silence_points(stderr: &str) -> Vec<f64> {
+    let mut points = Vec::new();
+    let mut pending: Option<f64> = None;
+    for line in stderr.lines() {
+        if let Some(start) = value_after(line, "silence_start: ") {
+            pending = Some(start);
+        } else if let Some(end) = value_after(line, "silence_end: ") {
+            let boundary = pending.take().map_or(end, |start| (start + end) / 2.0);
+            if boundary.is_finite() && boundary >= 0.0 {
+                points.push(boundary);
+            }
+        }
+    }
+    points
+}
+
+fn value_after(line: &str, marker: &str) -> Option<f64> {
+    let start = line.find(marker)? + marker.len();
+    line.get(start..)?
+        .split_whitespace()
+        .next()?
+        .parse::<f64>()
+        .ok()
+}
+
+fn parse_resolution(body: &str) -> Option<(u32, u32)> {
+    for token in body.split(',') {
+        let token = token.trim();
+        let Some((left, right)) = token.split_once('x') else {
+            continue;
+        };
+        let Ok(width) = left.trim().parse::<u32>() else {
+            continue;
+        };
+        let height_text = right.split_whitespace().next().unwrap_or_default();
+        let Ok(height) = height_text.parse::<u32>() else {
+            continue;
+        };
+        if (16..=16384).contains(&width) && (16..=16384).contains(&height) {
+            return Some((width, height));
+        }
+    }
+    None
+}
+
+fn parse_codec(body: &str) -> Option<String> {
+    body.split_whitespace()
+        .next()
+        .map(|value| value.trim_end_matches([',', '(']).to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn parse_channels(body: &str) -> Option<u16> {
+    for token in body.split(',') {
+        match token.trim() {
+            "mono" => return Some(1),
+            "stereo" => return Some(2),
+            "5.1" | "5.1(side)" => return Some(6),
+            "7.1" => return Some(8),
+            other => {
+                if let Some(value) = other.strip_suffix(" channels") {
+                    if let Ok(count) = value.trim().parse::<u16>() {
+                        return Some(count);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn seconds_to_millis(seconds: f64) -> u64 {
     (seconds * 1000.0).round() as u64
 }
@@ -510,9 +781,46 @@ mod tests {
     use async_trait::async_trait;
 
     use super::{
-        FfmpegPreprocessRequest, FfmpegRunOutput, FfmpegTranscriptionPreprocessor,
-        TranscriptionFfmpegRunner,
+        parse_silence_points, parse_stream_probe, FfmpegPreprocessRequest, FfmpegRunOutput,
+        FfmpegTranscriptionPreprocessor, TranscriptionFfmpegRunner,
     };
+
+    const MOV_TEXT_PROBE: &str = "  Duration: 00:18:18.00, start: 0.000000, bitrate: 500 kb/s\n\
+  Stream #0:0[0x1](und): Video: h264 (High) (avc1 / 0x31637661), yuv420p, 852x480 [SAR 1:1 DAR 16:9], 400 kb/s, 25 fps, 25 tbr, 90k tbn (default)\n\
+  Stream #0:1[0x2](und): Audio: aac (LC) (mp4a / 0x6134706D), 44100 Hz, stereo, fltp, 128 kb/s (default)\n\
+  Stream #0:2[0x3](chi): Subtitle: mov_text (tx3g / 0x67337874), 0 kb/s (default)\n";
+
+    #[test]
+    fn stream_probe_extracts_resolution_audio_and_subtitle_tracks() {
+        let probe = parse_stream_probe(MOV_TEXT_PROBE);
+
+        assert_eq!(probe.width, Some(852));
+        assert_eq!(probe.height, Some(480));
+        assert_eq!(probe.audio_codec.as_deref(), Some("aac"));
+        assert_eq!(probe.audio_channels, Some(2));
+        assert!(probe.has_video_track);
+        assert_eq!(probe.embedded_subtitles.len(), 1);
+        let track = &probe.embedded_subtitles[0];
+        assert_eq!(track.index, 2);
+        assert_eq!(track.codec, "mov_text");
+        assert_eq!(track.language.as_deref(), Some("chi"));
+    }
+
+    #[test]
+    fn stream_probe_ignores_cover_art_and_reads_channel_layouts() {
+        let stderr = "  Duration: 00:03:00.00, start: 0.000000, bitrate: 128 kb/s\n\
+  Stream #0:0: Video: mjpeg (Baseline) (jpeg / 0x6765706A), yuvj420p(pc), 600x600 [SAR 1:1 DAR 1:1], 90k tbr, 90k tbn (attached pic)\n\
+  Stream #0:1: Audio: mp3 (mp4a / 0x6134706D), 44100 Hz, mono, fltp, 128 kb/s\n\
+  Stream #0:2(eng): Audio: aac (LC), 48000 Hz, 2 channels, fltp\n";
+
+        let probe = parse_stream_probe(stderr);
+
+        assert!(!probe.has_video_track);
+        assert_eq!(probe.width, None);
+        assert_eq!(probe.audio_codec.as_deref(), Some("mp3"));
+        assert_eq!(probe.audio_channels, Some(1));
+        assert!(probe.embedded_subtitles.is_empty());
+    }
     use crate::{models::AppError, services::audio::ProcessControl};
 
     struct FakeRunner {
@@ -538,6 +846,18 @@ mod tests {
     }
 
     #[test]
+    fn silence_points_use_the_middle_of_each_silent_interval() {
+        let stderr = "[silencedetect @ 0x1] silence_start: 10\n\
+[silencedetect @ 0x1] silence_end: 12 | silence_duration: 2\n\
+[silencedetect @ 0x1] silence_start: 30\n\
+[silencedetect @ 0x1] silence_end: 31.5 | silence_duration: 1.5\n\
+[silencedetect @ 0x1] silence_start: 60\n";
+
+        assert_eq!(parse_silence_points(stderr), vec![11.0, 30.75]);
+        assert!(parse_silence_points("").is_empty());
+    }
+
+    #[test]
     fn inspect_and_preprocess_use_probe_metadata_and_create_managed_chunks() {
         tauri::async_runtime::block_on(async {
             let temp = tempfile::tempdir().unwrap();
@@ -546,12 +866,15 @@ mod tests {
             let runner = Arc::new(FakeRunner {
                 outputs: Mutex::new(VecDeque::from([
                     Ok(FfmpegRunOutput::Completed {
+                        stdout: Vec::new(),
                         stderr: "Duration: 00:30:05.000".into(),
                     }),
                     Ok(FfmpegRunOutput::Completed {
+                        stdout: Vec::new(),
                         stderr: String::new(),
                     }),
                     Ok(FfmpegRunOutput::Completed {
+                        stdout: Vec::new(),
                         stderr: String::new(),
                     }),
                 ])),

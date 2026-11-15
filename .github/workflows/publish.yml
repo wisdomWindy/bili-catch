@@ -84,8 +84,12 @@ jobs:
           release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           cat > "$RUNNER_TEMP/release-body.md" <<BODY
           Changes:
-          - Adds a donation entry in Settings with bundled Alipay and WeChat payment QR codes.
-          - Improves donation dialog accessibility, focus handling, and responsive layout.
+          - Adds a four-stage transcription source ladder: embedded subtitle tracks, platform subtitles with language validation, hard-subtitle OCR, and audio ASR.
+          - Bundles PP-OCRv4 recognition for burned-in subtitles and fuses OCR with ASR, flagging conflicting lines instead of silently picking one.
+          - Replaces fixed-length audio slicing with silence-aware chunking and tightens Whisper decoding to stop hallucinated text on music and silence.
+          - Adds FireRedASR2 AED and Qwen3-ASR model packages, multi-file model downloads with per-file SHA-256 verification, and an optional FireRedASR2 LLM tier through an external OpenASR runtime.
+          - Shows per-segment confidence in the transcript editor and recommends manual review when sources disagree.
+          - Guards model loading by available memory (E018) and adds an offline transcription quality benchmark (`npm run bench:asr`).
 
           Downloads:
           - Windows x64: [\`BiliCatch_${version}_Windows_x64-setup.exe\`]($release_base/BiliCatch_${version}_Windows_x64-setup.exe)

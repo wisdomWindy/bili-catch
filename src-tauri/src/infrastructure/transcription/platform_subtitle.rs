@@ -6,7 +6,7 @@ use serde::Deserialize;
 use url::Url;
 
 use crate::{
-    models::{AppError, AppErrorCode, TranscriptSegment},
+    models::{AppError, AppErrorCode, TranscriptOrigin, TranscriptSegment, TranscriptionLanguage},
     services::{
         auth::{context::AuthContextProvider, AuthManager},
         transcription::ports::{SubtitleLookup, SubtitleProvider, TranscriberOutput},
@@ -30,7 +30,12 @@ impl BilibiliSubtitleProvider {
 
 #[async_trait]
 impl SubtitleProvider for BilibiliSubtitleProvider {
-    async fn lookup(&self, bvid: &str, cid: u64) -> SubtitleLookup {
+    async fn lookup(
+        &self,
+        bvid: &str,
+        cid: u64,
+        language: TranscriptionLanguage,
+    ) -> SubtitleLookup {
         let auth = match self.auth.validated_context().await {
             Ok(value) => value,
             Err(error) => return SubtitleLookup::Failed(error),
@@ -59,13 +64,22 @@ impl SubtitleProvider for BilibiliSubtitleProvider {
             Ok(_) => return SubtitleLookup::Failed(subtitle_error("SUBTITLE_INDEX_REJECTED")),
             Err(_) => return SubtitleLookup::Failed(subtitle_error("SUBTITLE_INDEX_INVALID")),
         };
-        let Some(candidate) = index
+        let Some(candidates) = index
             .data
             .and_then(|data| data.subtitle)
-            .and_then(|subtitle| subtitle.subtitles.into_iter().next())
+            .map(|subtitle| subtitle.subtitles)
+            .filter(|values| !values.is_empty())
         else {
             return SubtitleLookup::Unavailable;
         };
+        let Some(candidate) = select_candidate(candidates, language) else {
+            return SubtitleLookup::Failed(subtitle_error("SUBTITLE_LANGUAGE_MISMATCH"));
+        };
+        let ai_generated = candidate
+            .language
+            .trim()
+            .to_ascii_lowercase()
+            .starts_with("ai-");
         let url = match validated_subtitle_url(&candidate.subtitle_url) {
             Ok(value) => value,
             Err(error) => return SubtitleLookup::Failed(error),
@@ -79,7 +93,11 @@ impl SubtitleProvider for BilibiliSubtitleProvider {
             Ok(value) => value,
             Err(_) => return SubtitleLookup::Failed(subtitle_error("SUBTITLE_BODY_NETWORK")),
         };
-        match parse_subtitle_body(&body, &candidate.language) {
+        match parse_subtitle_body(
+            &body,
+            &candidate.language,
+            if ai_generated { 0.75 } else { 0.9 },
+        ) {
             Ok(Some(output)) => SubtitleLookup::Available(output),
             Ok(None) => SubtitleLookup::Unavailable,
             Err(error) => SubtitleLookup::Failed(error),
@@ -107,7 +125,11 @@ fn validated_subtitle_url(raw: &str) -> Result<Url, AppError> {
     Ok(url)
 }
 
-fn parse_subtitle_body(body: &[u8], language: &str) -> Result<Option<TranscriberOutput>, AppError> {
+fn parse_subtitle_body(
+    body: &[u8],
+    language: &str,
+    confidence: f32,
+) -> Result<Option<TranscriberOutput>, AppError> {
     let document: SubtitleDocument =
         serde_json::from_slice(body).map_err(|_| subtitle_error("SUBTITLE_BODY_INVALID"))?;
     let segments = document
@@ -126,6 +148,9 @@ fn parse_subtitle_body(body: &[u8], language: &str) -> Result<Option<Transcriber
                 start_ms,
                 end_ms,
                 text,
+                origin: TranscriptOrigin::PlatformSubtitle,
+                confidence: Some(confidence),
+                ..TranscriptSegment::default()
             })
         })
         .collect::<Vec<_>>();
@@ -136,6 +161,37 @@ fn parse_subtitle_body(body: &[u8], language: &str) -> Result<Option<Transcriber
         detected_language: language.trim().to_owned(),
         segments,
     }))
+}
+
+fn select_candidate(
+    candidates: Vec<SubtitleCandidate>,
+    language: TranscriptionLanguage,
+) -> Option<SubtitleCandidate> {
+    candidates
+        .into_iter()
+        .find(|candidate| language_matches(language, &candidate.language))
+}
+
+/// B 站字幕轨的 `lan` 值既可能是 `zh-CN`、`en-US`，也可能是 `ai-zh` 这类机器轨。
+pub fn language_matches(requested: TranscriptionLanguage, actual: &str) -> bool {
+    let actual = actual.trim().to_ascii_lowercase();
+    if actual.is_empty() {
+        return false;
+    }
+    let normalized = actual.strip_prefix("ai-").unwrap_or(actual.as_str());
+    match requested {
+        TranscriptionLanguage::Auto => true,
+        TranscriptionLanguage::Zh => matches!(
+            normalized,
+            "zh" | "zh-hans" | "zh-cn" | "zh-chs" | "zh-my" | "zh-sg"
+        ),
+        TranscriptionLanguage::ZhTw => {
+            matches!(normalized, "zh-tw" | "zh-hant" | "zh-cht" | "zh-hk")
+        }
+        TranscriptionLanguage::En => normalized == "en" || normalized.starts_with("en-"),
+        TranscriptionLanguage::Ja => normalized == "ja" || normalized.starts_with("ja-"),
+        TranscriptionLanguage::Ko => normalized == "ko" || normalized.starts_with("ko-"),
+    }
 }
 
 fn subtitle_error(details: &'static str) -> AppError {
@@ -185,13 +241,15 @@ struct SubtitleLine {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_subtitle_body, validated_subtitle_url};
+    use super::{language_matches, parse_subtitle_body, validated_subtitle_url};
+    use crate::models::TranscriptionLanguage;
 
     #[test]
     fn parses_platform_subtitles_into_normalized_segments() {
         let output = parse_subtitle_body(
             br#"{"body":[{"from":0.25,"to":1.5,"content":" hello "},{"from":1.5,"to":2.0,"content":"world"}]}"#,
             "en",
+            0.9,
         )
         .unwrap()
         .unwrap();
@@ -200,7 +258,21 @@ mod tests {
         assert_eq!(output.segments[0].start_ms, 250);
         assert_eq!(output.segments[0].end_ms, 1500);
         assert_eq!(output.segments[0].text, "hello");
+        assert_eq!(output.segments[0].confidence, Some(0.9));
         assert_eq!(output.segments[1].index, 1);
+    }
+
+    #[test]
+    fn subtitle_language_matching_rejects_translated_tracks() {
+        assert!(language_matches(TranscriptionLanguage::Zh, "zh-CN"));
+        assert!(language_matches(TranscriptionLanguage::Zh, "ai-zh"));
+        assert!(language_matches(TranscriptionLanguage::ZhTw, "zh-TW"));
+        assert!(language_matches(TranscriptionLanguage::En, "en-US"));
+        assert!(language_matches(TranscriptionLanguage::Auto, "fr"));
+
+        assert!(!language_matches(TranscriptionLanguage::Zh, "en-US"));
+        assert!(!language_matches(TranscriptionLanguage::En, "ai-zh"));
+        assert!(!language_matches(TranscriptionLanguage::Zh, ""));
     }
 
     #[test]

@@ -7,6 +7,9 @@ export const ASR_MODEL_IDS = [
   "medium",
   "large-v3",
   "fire-red-asr2",
+  "fire-red-asr2-aed",
+  "fire-red-asr2-llm",
+  "qwen3-asr",
 ] as const;
 export type AsrModelId = (typeof ASR_MODEL_IDS)[number];
 
@@ -42,6 +45,13 @@ export type TranscriptionSource =
       cid?: number;
     };
 
+export interface EmbeddedSubtitleTrack {
+  index: number;
+  codec: string;
+  language?: string;
+  title?: string;
+}
+
 export interface MediaSourceInfo {
   fileName: string;
   path: string;
@@ -49,6 +59,13 @@ export interface MediaSourceInfo {
   sizeBytes: number;
   mediaKind: MediaKind;
   format: string;
+  width?: number;
+  height?: number;
+  audioCodec?: string;
+  audioChannels?: number;
+  hasVideoTrack?: boolean;
+  embeddedSubtitles?: EmbeddedSubtitleTrack[];
+  hardSubtitleDetected?: boolean;
 }
 
 export interface TranscriptionOptions {
@@ -97,11 +114,37 @@ export interface TranscribeTaskListSnapshot {
   tasks: TranscribeTask[];
 }
 
+export type TranscriptOrigin =
+  | "embedded-subtitle"
+  | "platform-subtitle"
+  | "asr"
+  | "hard-subtitle-ocr"
+  | "fused";
+
+export interface SegmentAlternate {
+  origin: TranscriptOrigin;
+  text: string;
+}
+
 export interface TranscriptSegment {
   index: number;
   startMs: number;
   endMs: number;
   text: string;
+  confidence?: number;
+  origin?: TranscriptOrigin;
+  alternates?: SegmentAlternate[];
+}
+
+export interface PipelineReport {
+  sourcesUsed: TranscriptOrigin[];
+  ocrMs: number;
+  asrMs: number;
+  conflictCount: number;
+  lowConfidenceCount: number;
+  engine: string;
+  modelVersion: string;
+  reviewRecommended: boolean;
 }
 
 export interface TranscriptResult {
@@ -116,6 +159,7 @@ export interface TranscriptResult {
   plainText: string;
   createdAt: string;
   updatedAt: string;
+  pipeline?: PipelineReport;
 }
 
 export type ModelDownloadState =

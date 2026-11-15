@@ -162,6 +162,10 @@ fn draft(page: u32) -> DownloadTaskDraft {
         part_title: format!("P{page}"),
         video_title: "Example video".into(),
         part_count: 4,
+        source: bilicatch_lib::models::VideoSource::Ugc,
+        container_kind: bilicatch_lib::models::ContainerKind::Video,
+        ep_id: None,
+        group_index: 1,
         mode: DownloadMode::VideoOnly,
         output_dir: "Downloads".into(),
         quality_id: Some("80".into()),
@@ -332,6 +336,30 @@ fn create_is_atomic_idempotent_and_emits_after_save() {
     assert_eq!(manager.list().tasks.len(), 2);
     assert_eq!(store.0.lock().unwrap().as_ref().unwrap().tasks.len(), 2);
     assert!(!sink.0.lock().unwrap().is_empty());
+}
+
+#[test]
+fn season_drafts_are_named_with_their_index() {
+    let manager = TaskManager::new(
+        Arc::new(MemoryStore::default()),
+        Arc::new(RecordingSink::default()),
+        Arc::new(NoopCleaner),
+        default_settings(),
+    )
+    .unwrap();
+    let mut value = draft(1);
+    value.container_kind = bilicatch_lib::models::ContainerKind::Season;
+    value.group_index = 3;
+    value.part_title = "第3话".into();
+
+    let created = manager
+        .create(CreateDownloadTasksRequest {
+            request_id: "batch_season".into(),
+            drafts: vec![value],
+        })
+        .unwrap();
+
+    assert_eq!(created.tasks[0].file_name, "3_第3话.mp4");
 }
 
 #[test]

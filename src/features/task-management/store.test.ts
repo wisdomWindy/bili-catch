@@ -45,6 +45,7 @@ describe("task management store", () => {
       items: [{
         canonicalUrl: "https://www.bilibili.com/video/BV1",
         bvid: "BV1", cid: 1, page: 1, partTitle: "P1", videoTitle: "Video", partCount: 1,
+        source: "ugc", containerKind: "video", epId: null, groupIndex: 1,
         mode: "video-audio", outputDir: "D:/Downloads", qualityId: "80", codec: "avc",
         audioFormat: null, audioBitrateId: null, autoTranscribe: false, transcriptionPreset: null,
       }],

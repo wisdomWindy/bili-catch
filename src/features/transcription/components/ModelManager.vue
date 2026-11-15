@@ -12,9 +12,9 @@ defineEmits<{
   delete: [id: AsrModelId];
 }>();
 
-type ModelSeries = "whisper" | "fireRedAsr2";
+type ModelSeries = "whisper" | "fireRedAsr2" | "qwen3";
 
-const modelSeriesOrder: readonly ModelSeries[] = ["whisper", "fireRedAsr2"];
+const modelSeriesOrder: readonly ModelSeries[] = ["whisper", "fireRedAsr2", "qwen3"];
 const modelSeriesById: Record<AsrModelId, ModelSeries> = {
   tiny: "whisper",
   base: "whisper",
@@ -22,6 +22,9 @@ const modelSeriesById: Record<AsrModelId, ModelSeries> = {
   medium: "whisper",
   "large-v3": "whisper",
   "fire-red-asr2": "fireRedAsr2",
+  "fire-red-asr2-aed": "fireRedAsr2",
+  "fire-red-asr2-llm": "fireRedAsr2",
+  "qwen3-asr": "qwen3",
 };
 const activeDownloadStates = new Set<AsrModel["downloadState"]>(["queued", "downloading", "verifying"]);
 const collapsedSeries = ref<ReadonlySet<ModelSeries>>(new Set());

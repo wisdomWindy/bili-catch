@@ -1,0 +1,117 @@
+{
+  "request_id": "bilicatch-collection-bangumi-support-20261114",
+  "source": {
+    "type": "local_prd_with_direct_instruction",
+    "path": "biliCatch_PRD.md",
+    "status": "正式发布",
+    "date": "2026-09-10",
+    "direct_instruction": "「番剧/合集支持」做成一个正式 request（2026-11-14 会话）",
+    "supplementary": [
+      "docs/requests/bilicatch-v1-desktop/analysis/requirement-analysis.md"
+    ]
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-collection-bangumi-support-20261114/request.md",
+    "prd_snapshot": "docs/requests/bilicatch-collection-bangumi-support-20261114/artifacts/prd-snapshot.md",
+    "requirement_analysis": "docs/requests/bilicatch-collection-bangumi-support-20261114/analysis/requirement-analysis.md",
+    "requirement_map": "docs/requests/bilicatch-collection-bangumi-support-20261114/requirements/requirement-map.md",
+    "code_context": "docs/requests/bilicatch-collection-bangumi-support-20261114/artifacts/code-context.md",
+    "module_identity_contract": "docs/requests/bilicatch-collection-bangumi-support-20261114/requirements/modules/episode-identity-and-contract.md",
+    "module_metadata": "docs/requests/bilicatch-collection-bangumi-support-20261114/requirements/modules/episode-metadata.md",
+    "module_download": "docs/requests/bilicatch-collection-bangumi-support-20261114/requirements/modules/episode-download.md",
+    "module_selection_ui": "docs/requests/bilicatch-collection-bangumi-support-20261114/requirements/modules/episode-selection-ui.md",
+    "module_identity_spec": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/spec/spec.md",
+    "module_identity_clarifications": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/spec/clarifications.md",
+    "module_identity_architecture": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/design/architecture-design.md",
+    "module_identity_plan": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/plan/plan.md",
+    "module_identity_task_board": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/plan/task-board.md",
+    "module_identity_changelog": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/execution/changelog.md",
+    "module_identity_verification": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/verification/verification.md",
+    "module_identity_review": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-identity-and-contract/review/review.md",
+    "module_metadata_spec": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/spec/spec.md",
+    "module_metadata_clarifications": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/spec/clarifications.md",
+    "module_metadata_architecture": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/design/architecture-design.md",
+    "module_metadata_plan": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/plan/plan.md",
+    "module_metadata_task_board": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/plan/task-board.md",
+    "module_metadata_changelog": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/execution/changelog.md",
+    "module_metadata_verification": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/verification/verification.md",
+    "module_metadata_review": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-metadata/review/review.md",
+    "module_download_spec": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/spec/spec.md",
+    "module_download_clarifications": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/spec/clarifications.md",
+    "module_download_architecture": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/design/architecture-design.md",
+    "module_download_plan": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/plan/plan.md",
+    "module_download_task_board": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/plan/task-board.md",
+    "module_download_changelog": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/execution/changelog.md",
+    "module_download_verification": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/verification/verification.md",
+    "module_download_review": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-download/review/review.md",
+    "module_selection_ui_page_design": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/design/page-design.md",
+    "module_selection_ui_spec": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/spec/spec.md",
+    "module_selection_ui_clarifications": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/spec/clarifications.md",
+    "module_selection_ui_plan": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/plan/plan.md",
+    "module_selection_ui_task_board": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/plan/task-board.md",
+    "module_selection_ui_changelog": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/execution/changelog.md",
+    "module_selection_ui_verification": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/verification/verification.md",
+    "module_selection_ui_review": "docs/requests/bilicatch-collection-bangumi-support-20261114/module-runs/episode-selection-ui/review/review.md",
+    "install_verification": "docs/requests/bilicatch-collection-bangumi-support-20261114/verification/install-verification.md"
+  },
+  "approvals": {
+    "spec_approved": false,
+    "plan_approved": false
+  },
+  "speed_profile": {
+    "level": "S3 broad",
+    "reason": "PRD 驱动的新增能力，跨前端解析页、Rust 端口与适配、任务契约、外部 PGC/合集接口与权限语义。",
+    "context_budget": "full",
+    "artifact_density": "full"
+  },
+  "module_flow": {
+    "execution_mode": "sequential",
+    "current_module_id": null,
+    "pending_module_ids": [],
+    "completed_module_ids": [
+      "episode-identity-and-contract",
+      "episode-metadata",
+      "episode-download",
+      "episode-selection-ui"
+    ],
+    "modules": {
+      "episode-identity-and-contract": {
+        "source_module_path": "requirements/modules/episode-identity-and-contract.md",
+        "page_design_required": false,
+        "architecture_design_required": true,
+        "approvals": { "spec_approved": true, "plan_approved": true },
+        "status": "completed"
+      },
+      "episode-metadata": {
+        "source_module_path": "requirements/modules/episode-metadata.md",
+        "page_design_required": false,
+        "architecture_design_required": true,
+        "approvals": { "spec_approved": true, "plan_approved": true },
+        "status": "completed"
+      },
+      "episode-download": {
+        "source_module_path": "requirements/modules/episode-download.md",
+        "page_design_required": false,
+        "architecture_design_required": true,
+        "approvals": { "spec_approved": true, "plan_approved": true },
+        "status": "completed"
+      },
+      "episode-selection-ui": {
+        "source_module_path": "requirements/modules/episode-selection-ui.md",
+        "page_design_required": true,
+        "architecture_design_required": false,
+        "approvals": { "spec_approved": true, "plan_approved": true },
+        "status": "completed"
+      }
+    }
+  },
+  "loop": {
+    "iteration": 8,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "gate_recovery"
+  }
+}

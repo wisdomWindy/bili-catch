@@ -4,6 +4,11 @@ export type ParseInputResult =
 
 const bvidPattern = /^BV[0-9A-Za-z]{10}$/;
 const aidPattern = /^av[1-9][0-9]*$/i;
+const bangumiUnitPattern = /^(ep|ss)[1-9][0-9]*$/;
+
+function isVideoUnit(value: string): boolean {
+  return bvidPattern.test(value) || aidPattern.test(value);
+}
 
 function isAllowedHost(hostname: string): boolean {
   return hostname === "b23.tv" || hostname === "bilibili.com" || hostname.endsWith(".bilibili.com");
@@ -15,8 +20,9 @@ function isSupportedUrl(value: string): boolean {
     if (url.protocol !== "https:" || !isAllowedHost(url.hostname.toLowerCase())) return false;
     if (url.hostname.toLowerCase() === "b23.tv") return url.pathname.length > 1;
     const segments = url.pathname.split("/").filter(Boolean);
-    const videoId = segments[segments.length - 1] ?? "";
-    if (!bvidPattern.test(videoId) && !aidPattern.test(videoId)) return false;
+    const unitId = segments[segments.length - 1] ?? "";
+    if (!isVideoUnit(unitId) && !bangumiUnitPattern.test(unitId)) return false;
+    if (!isVideoUnit(unitId)) return true;
     const page = url.searchParams.get("p");
     return page === null || /^[1-9][0-9]*$/.test(page);
   } catch {

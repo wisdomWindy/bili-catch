@@ -1,0 +1,22 @@
+{
+  "cases": [
+    {
+      "id": "talk-01",
+      "title": "口播：技术讲解（示例）",
+      "expectedEntities": ["所有权", "借用检查", "生命周期"],
+      "exports": {
+        "aed": "out/talk-01.aed.txt",
+        "baseline": "out/talk-01.baseline.txt"
+      }
+    },
+    {
+      "id": "interview-01",
+      "title": "访谈：多人对话（示例）",
+      "expectedEntities": ["产品", "供应链", "库存周转"],
+      "exports": {
+        "aed": "out/interview-01.aed.txt",
+        "baseline": "out/interview-01.baseline.txt"
+      }
+    }
+  ]
+}

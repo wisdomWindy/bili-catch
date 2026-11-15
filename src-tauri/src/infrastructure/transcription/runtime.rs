@@ -13,19 +13,29 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 
 use crate::{
     infrastructure::transcription::{
+        embedded_subtitle::parse_srt,
         ffmpeg_preprocessor::{FfmpegPreprocessRequest, FfmpegTranscriptionPreprocessor},
-        fire_red_sidecar::{FireRedSidecarTranscriber, FIRE_RED_MAX_CHUNK_SECONDS},
+        fire_red_sidecar::{
+            FireRedSidecarTranscriber, FIRE_RED_AED_MAX_CHUNK_SECONDS, FIRE_RED_MAX_CHUNK_SECONDS,
+        },
+        hard_subtitle_ocr::{read_bands, GrayFrame},
+        memory_guard,
         model_repository::{
             FileModelRepository, ModelDownloadCancellation, ReqwestModelDownloader,
         },
+        ocr_engine::OcrEngine,
+        openasr_sidecar::{OpenAsrTranscriber, OPENASR_MAX_CHUNK_SECONDS},
+        platform_subtitle::language_matches,
+        qwen3_asr_sidecar::{Qwen3AsrSidecarTranscriber, QWEN3_MAX_CHUNK_SECONDS},
         whisper_sidecar::WhisperSidecarTranscriber,
     },
     models::{
         AppError, AppErrorCode, AsrModel, AsrModelId, AsrModelListSnapshot,
         CreateTranscribeTaskRequest, CreateTranscribeTaskResult, ExportTranscriptRequest,
-        ExportTranscriptResult, GpuMode, MediaSourceInfo, ModelDownloadState, TranscribeTask,
-        TranscribeTaskAction, TranscribeTaskStatus, TranscriptFormat, TranscriptResult,
-        TranscriptionLanguage, TranscriptionOptions, TranscriptionProgress, TranscriptionSource,
+        ExportTranscriptResult, GpuMode, MediaSourceInfo, ModelDownloadState, PipelineReport,
+        TranscribeTask, TranscribeTaskAction, TranscribeTaskStatus, TranscriptFormat,
+        TranscriptOrigin, TranscriptResult, TranscriptionLanguage, TranscriptionOptions,
+        TranscriptionProgress, TranscriptionSource,
     },
     services::{
         audio::ProcessControl,
@@ -40,6 +50,7 @@ use crate::{
             },
             processing::{apply_punctuation_preference, merge_segments},
             scheduler::{effective_capacity, FairPendingQueue},
+            fusion::{fuse, Candidate},
             TranscriptionManager,
         },
     },
@@ -140,6 +151,8 @@ pub struct TranscriptionSidecarPaths {
     pub whisper: PathBuf,
     pub sherpa: PathBuf,
     pub fire_red_tokens: PathBuf,
+    pub ocr_model: PathBuf,
+    pub ocr_dictionary: PathBuf,
 }
 
 pub struct TranscriptionRuntime {
@@ -214,6 +227,7 @@ impl TranscriptionRuntime {
         let settings = self.settings.snapshot().values;
         let repository = FileModelRepository::new(&settings.asr_model_directory);
         repository.verify(request.options.model_id, settings.default_asr_model)?;
+        memory_guard::ensure_capacity(request.options.model_id)?;
         if request.options.gpu_mode == crate::models::GpuMode::Enabled
             && !self.sidecars.whisper.is_file()
         {
@@ -671,6 +685,41 @@ impl TranscriptionRuntime {
                 return Ok(());
             }
         }
+        let preprocessor = FfmpegTranscriptionPreprocessor::new(&self.sidecars.ffmpeg)?;
+        if !task.source_info.embedded_subtitles.is_empty() {
+            if let Some(track) = select_embedded_track(
+                &task.source_info.embedded_subtitles,
+                task.options.language,
+            ) {
+                if let Ok(bytes) = preprocessor
+                    .extract_subtitle(&source_path, track.index, control.clone())
+                    .await
+                {
+                    let segments = parse_srt(&bytes);
+                    if !segments.is_empty() {
+                        self.manager
+                            .transition(task_id, TranscribeTaskStatus::LoadingModel, None)?;
+                        self.manager
+                            .transition(task_id, TranscribeTaskStatus::Transcribing, None)?;
+                        self.manager
+                            .transition(task_id, TranscribeTaskStatus::Processing, None)?;
+                        let detected_language =
+                            track.language.clone().unwrap_or_else(|| "und".into());
+                        return self.complete_recognition(
+                            task_id,
+                            &task,
+                            fingerprint,
+                            TranscriberOutput {
+                                detected_language,
+                                segments,
+                            },
+                            false,
+                            None,
+                        );
+                    }
+                }
+            }
+        }
         if settings.prefer_platform_subtitles {
             if let TranscriptionSource::DownloadTask {
                 bvid: Some(bvid),
@@ -678,18 +727,26 @@ impl TranscriptionRuntime {
                 ..
             } = &task.source
             {
-                if let SubtitleLookup::Available(output) = self.subtitles.lookup(bvid, *cid).await {
+                if let SubtitleLookup::Available(output) = self
+                    .subtitles
+                    .lookup(bvid, *cid, task.options.language)
+                    .await
+                {
                     self.manager
                         .transition(task_id, TranscribeTaskStatus::LoadingModel, None)?;
                     self.manager
                         .transition(task_id, TranscribeTaskStatus::Transcribing, None)?;
                     self.manager
                         .transition(task_id, TranscribeTaskStatus::Processing, None)?;
-                    return self.complete_recognition(task_id, &task, fingerprint, output, false);
+                    return self.complete_recognition(task_id, &task, fingerprint, output, false, None);
                 }
             }
         }
-        let preprocessor = FfmpegTranscriptionPreprocessor::new(&self.sidecars.ffmpeg)?;
+        let silence_points = preprocessor
+            .detect_silence(&source_path, control.clone())
+            .await
+            .unwrap_or_default();
+        let source_for_ocr = source_path.clone();
         let preprocess_request = FfmpegPreprocessRequest {
             task_id: task_id.into(),
             run_revision: task.revision,
@@ -697,7 +754,7 @@ impl TranscriptionRuntime {
             duration_seconds: task.source_info.duration_seconds,
             temporary_directory: PathBuf::from(&settings.temporary_directory)
                 .join("bilicatch-transcribe"),
-            silence_points: Vec::new(),
+            silence_points,
         };
         let engine = transcription_engine(task.options.model_id);
         let parts = match engine {
@@ -707,11 +764,29 @@ impl TranscriptionRuntime {
                     .await?
             }
             TranscriptionEngine::FireRed => {
+                let limit = match task.options.model_id {
+                    AsrModelId::FireRedAsr2Aed => FIRE_RED_AED_MAX_CHUNK_SECONDS,
+                    _ => FIRE_RED_MAX_CHUNK_SECONDS,
+                };
+                preprocessor
+                    .preprocess_with_chunk_limit(preprocess_request, control.clone(), limit)
+                    .await?
+            }
+            TranscriptionEngine::Qwen3 => {
                 preprocessor
                     .preprocess_with_chunk_limit(
                         preprocess_request,
                         control.clone(),
-                        FIRE_RED_MAX_CHUNK_SECONDS,
+                        QWEN3_MAX_CHUNK_SECONDS,
+                    )
+                    .await?
+            }
+            TranscriptionEngine::OpenAsr => {
+                preprocessor
+                    .preprocess_with_chunk_limit(
+                        preprocess_request,
+                        control.clone(),
+                        OPENASR_MAX_CHUNK_SECONDS,
                     )
                     .await?
             }
@@ -735,6 +810,10 @@ impl TranscriptionRuntime {
                 &self.sidecars.sherpa,
                 &self.sidecars.fire_red_tokens,
             )?),
+            TranscriptionEngine::Qwen3 => {
+                Box::new(Qwen3AsrSidecarTranscriber::new(&self.sidecars.sherpa)?)
+            }
+            TranscriptionEngine::OpenAsr => Box::new(OpenAsrTranscriber::new()?),
         };
         self.manager
             .transition(task_id, TranscribeTaskStatus::Transcribing, None)?;
@@ -798,16 +877,90 @@ impl TranscriptionRuntime {
         }
         self.manager
             .transition(task_id, TranscribeTaskStatus::Processing, None)?;
+        let mut candidates = Vec::new();
+        if task.source_info.has_video_track
+            && self.sidecars.ocr_model.is_file()
+            && self.sidecars.ocr_dictionary.is_file()
+        {
+            if let Ok(candidate) = self
+                .ocr_candidate(&source_for_ocr, &task, &preprocessor, control.clone())
+                .await
+            {
+                if !candidate.segments.is_empty() {
+                    candidates.push(candidate);
+                }
+            }
+        }
+        candidates.push(Candidate {
+            origin: TranscriptOrigin::Asr,
+            segments: merge_segments(chunks),
+        });
+        let (segments, stats) = fuse(candidates);
+        let report = PipelineReport {
+            sources_used: stats.sources_used,
+            conflict_count: stats.conflict_count,
+            low_confidence_count: stats.low_confidence_count,
+            review_recommended: stats.review_recommended,
+            engine: engine_name(task.options.model_id).into(),
+            model_version: "2".into(),
+            ..PipelineReport::default()
+        };
         self.complete_recognition(
             task_id,
             &task,
             fingerprint,
             TranscriberOutput {
                 detected_language: detected_language.unwrap_or_else(|| "und".into()),
-                segments: merge_segments(chunks),
+                segments,
             },
             false,
+            Some(report),
         )
+    }
+
+    async fn ocr_candidate(
+        &self,
+        source_path: &Path,
+        task: &TranscribeTask,
+        preprocessor: &FfmpegTranscriptionPreprocessor,
+        control: ProcessControl,
+    ) -> Result<Candidate, AppError> {
+        const OCR_WIDTH: u32 = 480;
+        const MAX_FRAMES: u32 = 900;
+        let height = match (task.source_info.width, task.source_info.height) {
+            (Some(width), Some(height)) if width > 0 && height > 0 => {
+                (((OCR_WIDTH as f32 * height as f32 / width as f32).round() as u32).max(64) / 2) * 2
+            }
+            _ => 270,
+        };
+        let duration = task.source_info.duration_seconds.max(1) as f64;
+        let fps = (MAX_FRAMES as f64 / duration).clamp(0.2, 2.0);
+        let bytes = preprocessor
+            .extract_gray_frames(source_path, OCR_WIDTH, height, fps, MAX_FRAMES, control)
+            .await?;
+        let frame_size = (OCR_WIDTH * height) as usize;
+        let frames = bytes
+            .chunks_exact(frame_size)
+            .filter_map(|chunk| GrayFrame::new(OCR_WIDTH as usize, height as usize, chunk.to_vec()))
+            .collect::<Vec<_>>();
+        if frames.is_empty() {
+            return Ok(Candidate {
+                origin: TranscriptOrigin::HardSubtitleOcr,
+                segments: Vec::new(),
+            });
+        }
+        let model = self.sidecars.ocr_model.clone();
+        let dictionary = self.sidecars.ocr_dictionary.clone();
+        let segments = tokio::task::spawn_blocking(move || {
+            let engine = OcrEngine::load(&model, &dictionary)?;
+            read_bands(&engine, &frames, fps)
+        })
+        .await
+        .map_err(|_| internal("OCR_TASK_JOIN_FAILED"))??;
+        Ok(Candidate {
+            origin: TranscriptOrigin::HardSubtitleOcr,
+            segments,
+        })
     }
 
     fn complete_recognition(
@@ -817,6 +970,7 @@ impl TranscriptionRuntime {
         fingerprint: String,
         output: TranscriberOutput,
         cache_reused: bool,
+        pipeline: Option<PipelineReport>,
     ) -> Result<(), AppError> {
         let mut segments = output.segments;
         for segment in &mut segments {
@@ -849,6 +1003,7 @@ impl TranscriptionRuntime {
             plain_text,
             created_at: now.clone(),
             updated_at: now,
+            pipeline,
         };
         self.manager
             .transition(task_id, TranscribeTaskStatus::Saving, None)?;
@@ -942,11 +1097,40 @@ fn now_rfc3339() -> Result<String, AppError> {
 enum TranscriptionEngine {
     Whisper,
     FireRed,
+    Qwen3,
+    OpenAsr,
+}
+
+fn select_embedded_track<'a>(
+    tracks: &'a [crate::models::EmbeddedSubtitleTrack],
+    language: TranscriptionLanguage,
+) -> Option<&'a crate::models::EmbeddedSubtitleTrack> {
+    tracks
+        .iter()
+        .find(|track| {
+            track
+                .language
+                .as_deref()
+                .is_some_and(|value| language_matches(language, value))
+        })
+        .or_else(|| tracks.first())
+}
+
+fn engine_name(model_id: AsrModelId) -> &'static str {
+    match model_id {
+        AsrModelId::FireRedAsr2 => "fire-red-ctc",
+        AsrModelId::FireRedAsr2Aed => "fire-red-aed",
+        AsrModelId::FireRedAsr2Llm => "openasr-firered2-llm",
+        AsrModelId::Qwen3Asr => "qwen3-asr",
+        _ => "whisper",
+    }
 }
 
 fn transcription_engine(model_id: AsrModelId) -> TranscriptionEngine {
     match model_id {
-        AsrModelId::FireRedAsr2 => TranscriptionEngine::FireRed,
+        AsrModelId::FireRedAsr2 | AsrModelId::FireRedAsr2Aed => TranscriptionEngine::FireRed,
+        AsrModelId::FireRedAsr2Llm => TranscriptionEngine::OpenAsr,
+        AsrModelId::Qwen3Asr => TranscriptionEngine::Qwen3,
         AsrModelId::Tiny
         | AsrModelId::Base
         | AsrModelId::Small
@@ -960,7 +1144,20 @@ fn validate_model_options(
     language: TranscriptionLanguage,
     gpu_mode: GpuMode,
 ) -> Result<(), AppError> {
-    if model_id != AsrModelId::FireRedAsr2 {
+    if model_id == AsrModelId::Qwen3Asr {
+        if gpu_mode == GpuMode::Enabled {
+            return Err(runtime_error(
+                AppErrorCode::E014,
+                "GPU_UNAVAILABLE",
+                "Qwen3-ASR currently uses the bundled CPU runtime",
+            ));
+        }
+        return Ok(());
+    }
+    if !matches!(
+        model_id,
+        AsrModelId::FireRedAsr2 | AsrModelId::FireRedAsr2Aed | AsrModelId::FireRedAsr2Llm
+    ) {
         return Ok(());
     }
     if matches!(

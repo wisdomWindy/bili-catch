@@ -2,20 +2,12 @@
 import { ref, watch } from "vue";
 import { Film } from "@lucide/vue";
 import type { ParseVideoResult } from "../contracts";
+import { formatDuration } from "../format";
 
 const props = defineProps<{ result: ParseVideoResult }>();
 const coverFailed = ref(false);
 
 watch(() => props.result.coverUrl, () => { coverFailed.value = false; });
-
-function duration(value: number): string {
-  const hours = Math.floor(value / 3600);
-  const minutes = Math.floor((value % 3600) / 60);
-  const seconds = value % 60;
-  return hours > 0
-    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
-    : `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
 </script>
 
 <template>
@@ -28,8 +20,11 @@ function duration(value: number): string {
       <h2 id="video-title">{{ result.title || "—" }}</h2>
       <p>{{ result.ownerName || "—" }}</p>
       <dl>
-        <div><dt>BV</dt><dd>{{ result.bvid }}</dd></div>
-        <div><dt>{{ $t("download.duration") }}</dt><dd>{{ duration(result.durationSeconds) }}</dd></div>
+        <div v-if="result.bvid"><dt>BV</dt><dd>{{ result.bvid }}</dd></div>
+        <div v-if="result.durationSeconds > 0">
+          <dt>{{ $t("download.duration") }}</dt>
+          <dd>{{ formatDuration(result.durationSeconds) }}</dd>
+        </div>
         <div><dt>{{ $t("download.partsCount") }}</dt><dd>{{ result.parts.length }}</dd></div>
       </dl>
     </div>

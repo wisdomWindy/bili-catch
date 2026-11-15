@@ -1,8 +1,25 @@
 use serde::{Deserialize, Serialize};
 
 use super::{
-    AppError, AsrModelId, AudioFormat, TranscriptFormat, TranscriptionLanguage, VideoCodec,
+    AppError, AsrModelId, AudioFormat, ContainerKind, TranscriptFormat, TranscriptionLanguage,
+    VideoCodec, VideoSource,
 };
+
+fn default_source() -> VideoSource {
+    VideoSource::Ugc
+}
+
+fn default_container_kind() -> ContainerKind {
+    ContainerKind::Video
+}
+
+fn default_group_index() -> u32 {
+    1
+}
+
+fn default_part_count() -> u32 {
+    1
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -70,6 +87,14 @@ pub struct DownloadTaskDraft {
     pub part_title: String,
     pub video_title: String,
     pub part_count: u32,
+    #[serde(default = "default_source")]
+    pub source: VideoSource,
+    #[serde(default = "default_container_kind")]
+    pub container_kind: ContainerKind,
+    #[serde(default)]
+    pub ep_id: Option<u64>,
+    #[serde(default = "default_group_index")]
+    pub group_index: u32,
     pub mode: DownloadMode,
     pub output_dir: String,
     pub quality_id: Option<String>,
@@ -96,6 +121,16 @@ pub struct DownloadTask {
     pub cid: u64,
     pub page: u32,
     pub part_title: String,
+    #[serde(default = "default_part_count")]
+    pub part_count: u32,
+    #[serde(default = "default_source")]
+    pub source: VideoSource,
+    #[serde(default = "default_container_kind")]
+    pub container_kind: ContainerKind,
+    #[serde(default)]
+    pub ep_id: Option<u64>,
+    #[serde(default = "default_group_index")]
+    pub group_index: u32,
     pub mode: DownloadMode,
     pub quality_id: Option<String>,
     pub codec: Option<VideoCodec>,
@@ -189,4 +224,77 @@ pub struct TaskProgressEvent {
 pub struct TaskRemovedEvent {
     pub sequence: u64,
     pub task_id: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DownloadTask, DownloadTaskDraft, VideoSource};
+
+    #[test]
+    fn legacy_task_json_defaults_the_unit_fields() {
+        let value = serde_json::json!({
+            "id": "batch-1:0",
+            "revision": 1,
+            "createdAt": "2026-09-10T00:00:00Z",
+            "updatedAt": "2026-09-10T00:00:00Z",
+            "fileName": "P1.mp4",
+            "outputDir": "Downloads",
+            "outputPath": null,
+            "bvid": "BV1xx411c7BF",
+            "cid": 1001,
+            "page": 1,
+            "partTitle": "P1",
+            "mode": "video-only",
+            "qualityId": "80",
+            "codec": "avc",
+            "audioFormat": null,
+            "audioBitrateId": null,
+            "autoTranscribe": false,
+            "transcriptionPreset": null,
+            "status": "queued",
+            "controlRequest": "none",
+            "progressPercent": 0,
+            "bytesDownloaded": "0",
+            "totalBytes": null,
+            "speedBytesPerSecond": "0",
+            "etaSeconds": null,
+            "automaticRetryCount": 0,
+            "nextRetryAt": null,
+            "error": null
+        });
+
+        let task: DownloadTask =
+            serde_json::from_value(value).expect("legacy task must deserialize");
+        assert_eq!(task.source, VideoSource::Ugc);
+        assert_eq!(task.ep_id, None);
+        assert_eq!(task.group_index, 1);
+        assert_eq!(task.part_count, 1);
+    }
+
+    #[test]
+    fn legacy_draft_json_defaults_the_unit_fields() {
+        let value = serde_json::json!({
+            "canonicalUrl": "https://www.bilibili.com/video/BV1xx411c7BF",
+            "bvid": "BV1xx411c7BF",
+            "cid": 1,
+            "page": 1,
+            "partTitle": "P1",
+            "videoTitle": "Example",
+            "partCount": 1,
+            "mode": "video-only",
+            "outputDir": "Downloads",
+            "qualityId": "80",
+            "codec": "avc",
+            "audioFormat": null,
+            "audioBitrateId": null,
+            "autoTranscribe": false,
+            "transcriptionPreset": null
+        });
+
+        let draft: DownloadTaskDraft =
+            serde_json::from_value(value).expect("legacy draft must deserialize");
+        assert_eq!(draft.source, VideoSource::Ugc);
+        assert_eq!(draft.ep_id, None);
+        assert_eq!(draft.group_index, 1);
+    }
 }

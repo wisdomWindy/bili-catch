@@ -133,7 +133,11 @@ export const useDownloadCenterStore = defineStore("download-center", {
     },
     applyResult(result: ParseVideoResult) {
       this.result = result;
-      const preferred = result.parts.find((part) => part.page === result.requestedPage) ?? result.parts[0];
+      const preferred =
+        result.parts.find((part) => part.cid === result.requestedCid) ??
+        result.parts.find((part) => part.page === result.requestedPage) ??
+        result.parts.find((part) => part.availability === "playable") ??
+        result.parts[0];
       this.selectedCids = preferred ? [preferred.cid] : [];
       this.mode = "video-audio";
       const videoVariant = selectVideoVariant(
@@ -184,17 +188,32 @@ export const useDownloadCenterStore = defineStore("download-center", {
       return Promise.resolve();
     },
     togglePart(cid: number) {
+      if (this.result?.parts.find((part) => part.cid === cid)?.availability !== "playable") return;
       this.selectedCids = this.selectedCids.includes(cid)
         ? this.selectedCids.filter((value) => value !== cid)
         : [...this.selectedCids, cid];
     },
+    toggleGroup(cids: number[]) {
+      const selectable = cids.filter(
+        (cid) => this.result?.parts.find((part) => part.cid === cid)?.availability === "playable",
+      );
+      if (selectable.length === 0) return;
+      const allSelected = selectable.every((cid) => this.selectedCids.includes(cid));
+      this.selectedCids = allSelected
+        ? this.selectedCids.filter((cid) => !selectable.includes(cid))
+        : [...new Set([...this.selectedCids, ...selectable])];
+    },
     selectAll() {
-      this.selectedCids = this.result?.parts.map((part) => part.cid) ?? [];
+      this.selectedCids =
+        this.result?.parts.filter((part) => part.availability === "playable").map((part) => part.cid) ??
+        [];
     },
     invertSelection() {
-      this.selectedCids = this.result?.parts
-        .filter((part) => !this.selectedCids.includes(part.cid))
-        .map((part) => part.cid) ?? [];
+      this.selectedCids =
+        this.result?.parts
+          .filter((part) => part.availability === "playable")
+          .filter((part) => !this.selectedCids.includes(part.cid))
+          .map((part) => part.cid) ?? [];
     },
     setMode(mode: DownloadMode, authenticated?: boolean) {
       const isAuthenticated = authenticated ?? this.authenticated;
@@ -326,12 +345,16 @@ export const useDownloadCenterStore = defineStore("download-center", {
         .filter((part) => this.selectedCids.includes(part.cid))
         .map((part) => ({
           canonicalUrl: result.canonicalUrl,
-          bvid: result.bvid,
+          bvid: part.bvid,
           cid: part.cid,
           page: part.page,
           partTitle: part.title,
           videoTitle: result.title,
-          partCount: result.parts.length,
+          partCount: part.partCount,
+          source: result.source,
+          containerKind: result.container?.kind ?? "video",
+          epId: part.epId,
+          groupIndex: part.groupIndex,
           mode: this.mode,
           outputDir: this.outputDir.trim(),
           qualityId: this.mode === "audio-only" ? null : this.qualityId,

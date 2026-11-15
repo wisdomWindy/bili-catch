@@ -1,6 +1,6 @@
 use bilicatch_lib::models::{
-    AudioCapability, AudioFormat, MediaOption, ParseVideoResult, VideoCodec, VideoPart,
-    VideoVariant,
+    AudioCapability, AudioFormat, Availability, ContainerKind, MediaOption, ParseContainer,
+    ParseVideoResult, VideoCodec, VideoPart, VideoSource, VideoVariant,
 };
 use serde_json::json;
 
@@ -8,18 +8,32 @@ use serde_json::json;
 fn parse_result_serializes_to_the_frontend_contract() {
     let result = ParseVideoResult {
         canonical_url: "https://www.bilibili.com/video/BV1xx411c7BF".into(),
-        bvid: "BV1xx411c7BF".into(),
-        aid: 170001,
+        bvid: Some("BV1xx411c7BF".into()),
+        aid: Some(170001),
+        source: VideoSource::Ugc,
+        container: Some(ParseContainer {
+            kind: ContainerKind::Video,
+            id: "BV1xx411c7BF".into(),
+            title: "Example".into(),
+            unit_count: 1,
+        }),
         title: "Example".into(),
         owner_name: "Uploader".into(),
         cover_url: "https://i0.hdslb.com/example.jpg".into(),
         duration_seconds: 90,
         requested_page: None,
+        requested_cid: None,
         parts: vec![VideoPart {
             cid: 1,
+            bvid: "BV1xx411c7BF".into(),
+            ep_id: None,
             page: 1,
+            part_count: 1,
+            group_index: 1,
             title: "P1".into(),
             duration_seconds: 90,
+            availability: Availability::Playable,
+            unavailable_reason: None,
         }],
         qualities: vec![MediaOption {
             id: "32".into(),
@@ -50,12 +64,31 @@ fn parse_result_serializes_to_the_frontend_contract() {
             "canonicalUrl": "https://www.bilibili.com/video/BV1xx411c7BF",
             "bvid": "BV1xx411c7BF",
             "aid": 170001,
+            "source": "ugc",
+            "container": {
+                "kind": "video",
+                "id": "BV1xx411c7BF",
+                "title": "Example",
+                "unitCount": 1
+            },
             "title": "Example",
             "ownerName": "Uploader",
             "coverUrl": "https://i0.hdslb.com/example.jpg",
             "durationSeconds": 90,
             "requestedPage": null,
-            "parts": [{ "cid": 1, "page": 1, "title": "P1", "durationSeconds": 90 }],
+            "requestedCid": null,
+            "parts": [{
+                "cid": 1,
+                "bvid": "BV1xx411c7BF",
+                "epId": null,
+                "page": 1,
+                "partCount": 1,
+                "groupIndex": 1,
+                "title": "P1",
+                "durationSeconds": 90,
+                "availability": "playable",
+                "unavailableReason": null
+            }],
             "qualities": [{ "id": "32", "label": "480P", "requiresLogin": false }],
             "codecs": ["avc"],
             "videoVariants": [{ "qualityId": "32", "codec": "avc" }],

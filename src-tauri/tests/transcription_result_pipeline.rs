@@ -17,12 +17,14 @@ fn segments() -> Vec<TranscriptSegment> {
             start_ms: 1_250,
             end_ms: 2_500,
             text: "Hello, world!".into(),
+            ..TranscriptSegment::default()
         },
         TranscriptSegment {
             index: 1,
             start_ms: 3_661_005,
             end_ms: 3_662_010,
             text: "第二段。".into(),
+            ..TranscriptSegment::default()
         },
     ]
 }
@@ -72,12 +74,14 @@ fn chunk_merge_reindexes_and_clamps_non_monotonic_boundaries() {
             start_ms: 100,
             end_ms: 900,
             text: "one".into(),
+            ..TranscriptSegment::default()
         }],
         vec![TranscriptSegment {
             index: 4,
             start_ms: 850,
             end_ms: 800,
             text: "two".into(),
+            ..TranscriptSegment::default()
         }],
     ]);
     assert_eq!(merged[0].index, 0);

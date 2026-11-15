@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
 use crate::infrastructure::bilibili::validate_media_url;
-use crate::models::{AppError, AppErrorCode, AudioOutputProfile};
+use crate::models::{AppError, AppErrorCode, AudioOutputProfile, VideoSource};
 use crate::services::download::{validate_media_source_kind, MediaKind, MediaSourceCandidate};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +34,8 @@ pub struct AudioSourceBundle {
 pub struct AudioSourceRequest {
     pub bvid: String,
     pub cid: u64,
+    pub source: VideoSource,
+    pub ep_id: Option<u64>,
     pub output_profile: AudioOutputProfile,
 }
 

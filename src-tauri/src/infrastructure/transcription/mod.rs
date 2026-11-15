@@ -1,8 +1,14 @@
+pub mod embedded_subtitle;
 pub mod ffmpeg_preprocessor;
 pub mod fire_red_sidecar;
+pub mod hard_subtitle_ocr;
 pub mod json_store;
+pub mod memory_guard;
 pub mod model_repository;
+pub mod ocr_engine;
+pub mod openasr_sidecar;
 pub mod platform_subtitle;
+pub mod qwen3_asr_sidecar;
 pub mod runtime;
 pub mod tauri_adapter;
 pub mod whisper_sidecar;

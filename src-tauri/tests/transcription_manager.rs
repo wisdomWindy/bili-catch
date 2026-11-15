@@ -79,6 +79,13 @@ fn task(id: &str, status: TranscribeTaskStatus) -> TranscribeTask {
             size_bytes: 100,
             media_kind: MediaKind::Audio,
             format: "wav".into(),
+            width: None,
+            height: None,
+            audio_codec: Some("pcm_s16le".into()),
+            audio_channels: Some(1),
+            has_video_track: false,
+            embedded_subtitles: Vec::new(),
+            hard_subtitle_detected: false,
         },
         options: TranscriptionOptions {
             model_id: AsrModelId::Base,
@@ -254,10 +261,12 @@ fn completing_and_editing_a_result_is_atomic_and_revision_checked() {
             start_ms: 10,
             end_ms: 20,
             text: "first".into(),
+            ..TranscriptSegment::default()
         }],
         plain_text: "first".into(),
         created_at: "2026-10-10T00:00:00Z".into(),
         updated_at: "2026-10-10T00:00:00Z".into(),
+        pipeline: None,
     };
 
     let completed = manager

@@ -1,4 +1,4 @@
-use crate::models::{AppError, AudioOutputProfile, DownloadMode, DownloadTaskDraft};
+use crate::models::{AppError, AudioOutputProfile, DownloadMode, DownloadTaskDraft, VideoSource};
 
 pub const TASK_CAPACITY: usize = 100;
 
@@ -39,6 +39,7 @@ pub fn validate_create_request(
             || draft.part_count == 0
             || draft.page == 0
             || draft.page > draft.part_count
+            || !valid_source_fields(&draft)
             || !valid_media_fields(&draft)
         {
             return Err(AppError::internal("Invalid download task draft"));
@@ -50,6 +51,13 @@ pub fn validate_create_request(
         request_id: request_id.to_owned(),
         drafts: normalized,
     })
+}
+
+fn valid_source_fields(draft: &DownloadTaskDraft) -> bool {
+    match draft.source {
+        VideoSource::Bangumi => draft.ep_id.is_some_and(|ep_id| ep_id > 0),
+        VideoSource::Ugc => draft.ep_id.is_none(),
+    }
 }
 
 fn valid_media_fields(draft: &DownloadTaskDraft) -> bool {
@@ -68,5 +76,73 @@ fn valid_media_fields(draft: &DownloadTaskDraft) -> bool {
                 )
                 .is_ok()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_create_request;
+    use crate::models::{
+        AppError, AudioFormat, ContainerKind, DownloadMode, DownloadTaskDraft, VideoCodec,
+        VideoSource,
+    };
+
+    fn draft(source: VideoSource, ep_id: Option<u64>) -> DownloadTaskDraft {
+        DownloadTaskDraft {
+            canonical_url: "https://www.bilibili.com/video/BV1xx411c7BF".into(),
+            bvid: "BV1xx411c7BF".into(),
+            cid: 1001,
+            page: 1,
+            part_title: "P1".into(),
+            video_title: "Example".into(),
+            part_count: 1,
+            source,
+            container_kind: ContainerKind::Video,
+            ep_id,
+            group_index: 1,
+            mode: DownloadMode::VideoOnly,
+            output_dir: "Downloads".into(),
+            quality_id: Some("80".into()),
+            codec: Some(VideoCodec::Avc),
+            audio_format: None,
+            audio_bitrate_id: None,
+            auto_transcribe: false,
+            transcription_preset: None,
+        }
+    }
+
+    #[test]
+    fn accepts_consistent_source_fields() {
+        assert!(validate_create_request("batch-1", vec![draft(VideoSource::Ugc, None)], 0).is_ok());
+        assert!(validate_create_request(
+            "batch-2",
+            vec![draft(VideoSource::Bangumi, Some(733316))],
+            0
+        )
+        .is_ok());
+    }
+
+    #[test]
+    fn rejects_inconsistent_source_fields() {
+        for (source, ep_id) in [
+            (VideoSource::Bangumi, None),
+            (VideoSource::Bangumi, Some(0)),
+            (VideoSource::Ugc, Some(733316)),
+        ] {
+            let error = validate_create_request("batch-1", vec![draft(source, ep_id)], 0)
+                .expect_err("inconsistent source fields must be rejected");
+            assert_eq!(error.code, AppError::internal("fixture").code);
+        }
+    }
+
+    #[test]
+    fn audio_drafts_still_require_a_matching_audio_profile() {
+        let mut value = draft(VideoSource::Ugc, None);
+        value.mode = DownloadMode::AudioOnly;
+        value.quality_id = None;
+        value.codec = None;
+        value.audio_format = Some(AudioFormat::Mp3);
+        value.audio_bitrate_id = Some("320".into());
+        assert!(validate_create_request("batch-1", vec![value], 0).is_ok());
     }
 }

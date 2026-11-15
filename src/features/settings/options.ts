@@ -46,7 +46,7 @@ export const CLOSE_BEHAVIOR_OPTIONS: readonly SettingOption<CloseBehavior>[] = [
 
 export const ASR_MODEL_OPTIONS: readonly SettingOption<AsrModelId>[] = ASR_MODEL_IDS.map((value) => ({
   value,
-  labelKey: `settings.options.asrModel.${value.replace("-", "")}`,
+  labelKey: `settings.options.asrModel.${value.replace(/-/g, "")}`,
 }));
 
 export const TRANSCRIPTION_LANGUAGE_OPTIONS: readonly SettingOption<TranscriptionLanguage>[] = TRANSCRIPTION_LANGUAGES.map((value) => ({

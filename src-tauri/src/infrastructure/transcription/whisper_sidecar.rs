@@ -64,7 +64,25 @@ pub fn build_whisper_args(request: &WhisperRequest) -> Vec<OsString> {
         request.output_base.as_os_str().to_owned(),
         "-pp".into(),
         "-np".into(),
+        // 关闭跨段上下文，抑制静音/音乐段幻觉沿上文级联。
+        "-mc".into(),
+        "0".into(),
+        // 熵阈值与对数概率阈值：丢弃低置信度的重复/乱码段。
+        "-et".into(),
+        "2.4".into(),
+        "-lpt".into(),
+        "-1.0".into(),
+        // 静音段判定阈值，减少把无人声片段解成文字。
+        "-nth".into(),
+        "0.6".into(),
     ];
+    if matches!(
+        request.language,
+        TranscriptionLanguage::Zh | TranscriptionLanguage::ZhTw
+    ) {
+        arguments.push("--prompt".into());
+        arguments.push("以下是普通话的句子，请使用简体中文和标点。".into());
+    }
     if request.gpu_mode == GpuMode::Disabled {
         arguments.push("-ng".into());
     }
@@ -122,6 +140,7 @@ pub fn parse_whisper_json(bytes: &[u8], offset_ms: u64) -> Result<TranscriberOut
             start_ms,
             end_ms,
             text: text.into(),
+            ..TranscriptSegment::default()
         });
     }
     if segments.is_empty() {
@@ -478,7 +497,9 @@ mod tests {
 
     use async_trait::async_trait;
 
-    use super::{SidecarRunResult, SidecarRunner, WhisperSidecarTranscriber};
+    use super::{
+        build_whisper_args, SidecarRunResult, SidecarRunner, WhisperSidecarTranscriber,
+    };
     use crate::{
         models::{AppError, GpuMode, TranscriptionLanguage},
         services::{
@@ -533,6 +554,36 @@ mod tests {
             gpu_mode,
             offset_ms: 0,
         }
+    }
+
+    #[test]
+    fn chinese_requests_disable_context_and_add_the_simplified_prompt() {
+        let temp = tempfile::tempdir().unwrap();
+        let request = TranscriberRequest {
+            model_path: temp.path().join("model.bin"),
+            audio_path: temp.path().join("part.wav"),
+            output_base: temp.path().join("result"),
+            language: TranscriptionLanguage::Zh,
+            gpu_mode: GpuMode::Auto,
+            offset_ms: 0,
+        };
+
+        let arguments = build_whisper_args(&request)
+            .iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair[0] == "-mc" && pair[1] == "0"));
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair[0] == "-et" && pair[1] == "2.4"));
+        assert!(arguments
+            .windows(2)
+            .any(|pair| pair[0] == "-nth" && pair[1] == "0.6"));
+        assert!(arguments.iter().any(|value| value.contains("简体中文")));
+        assert!(!arguments.iter().any(|value| value == "-ng"));
     }
 
     #[test]

@@ -59,6 +59,16 @@ fn typed_builder_emits_v1_8_6_full_json_args_without_shell_joining() {
         "D:/Temp/result-01",
         "-pp",
         "-np",
+        "-mc",
+        "0",
+        "-et",
+        "2.4",
+        "-lpt",
+        "-1.0",
+        "-nth",
+        "0.6",
+        "--prompt",
+        "以下是普通话的句子，请使用简体中文和标点。",
         "-ng",
     ]
     .map(OsString::from);
