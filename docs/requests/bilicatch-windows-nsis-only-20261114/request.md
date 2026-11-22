@@ -16,7 +16,6 @@ Windows 构建只产出 NSIS 安装包（setup.exe），不再生成 MSI；安�
 
 1. 平台配置 `src-tauri/tauri.windows.conf.json`：`bundle.targets = ["nsis"]`，Windows 不再默认打 MSI。
 2. 官方 Tauri NSIS 管道：从旧 Codex 会话缓存中恢复 `nsis_tauri_utils.dll`（SHA1 校验通过）并与 NSIS 3.13 合并，`pnpm tauri build` 已能直接产出官方 NSIS 安装包。
-3. 离线兜底：`src-tauri/nsis/installer.nsi` + `scripts/build-nsis.ps1`（无工具链缓存时可用）。
 3. 产物：`src-tauri/target/release/bundle/nsis/BiliCatch_0.2.2_x64-setup.exe`。
 
 ## 验收

@@ -305,8 +305,12 @@ pub(crate) fn adapt_collection_result(
         .ugc_season
         .clone()
         .ok_or_else(|| unavailable("The collection metadata is missing"))?;
-    let requested_cid = requested_page
-        .and_then(|page| view.pages.iter().find(|part| part.page == page))
+    // The pasted video is the entry point of the collection, so it should stay selected.
+    let requested_cid = view
+        .pages
+        .iter()
+        .find(|part| Some(part.page) == requested_page)
+        .or_else(|| view.pages.first())
         .map(|part| part.cid);
     let mut result = adapt_parse_result(view, play, requested_page)?;
     let units = adapt_collection_units(&season);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { CheckCheck, ListRestart } from "@lucide/vue";
 import type { ParseContainer, VideoPart, VideoSource } from "../contracts";
@@ -19,6 +19,19 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+const listRef = ref<HTMLElement | null>(null);
+
+watch(
+  () => props.selectedCids,
+  async () => {
+    await nextTick();
+    const cid = props.selectedCids[0];
+    if (cid === undefined || !listRef.value) return;
+    const row = listRef.value.querySelector<HTMLElement>(`[data-cid="${cid}"]`);
+    row?.scrollIntoView?.({ block: "nearest" });
+  },
+  { immediate: true },
+);
 
 interface DisplayRow {
   key: string;
@@ -116,11 +129,12 @@ function unavailableReason(part: VideoPart | null): string {
         </button>
       </div>
     </div>
-    <div class="parts-list">
+    <div ref="listRef" class="parts-list">
       <label
         v-for="row in displayRows"
         :key="row.key"
         class="part-row"
+        :data-cid="row.part?.cid"
         :class="{
           'part-group': row.kind === 'group',
           'part-child': row.kind === 'child',

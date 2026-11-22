@@ -31,3 +31,10 @@
 ## 未改动
 
 无新增依赖、无新增文件、无页面组件与样式改动。
+
+## 后续修复（2026-11-22）
+
+- 问题：粘贴合集内某条视频（如 `BV1ZAWM61Evb`，合集第 8 集）解析后默认选中 EP1。
+- 原因：`adapt_collection_result` 只在 URL 带 `?p=` 时设置 `requestedCid`，否则为 null，前端回退到首个可播放单元。
+- 修复：无 `?p=` 时取入口稿件 P1 的 cid；带 `?p=` 时取对应 P。Vue 选集列表同时滚动到首个选中行，避免选中项在滚动区外不可见。
+- 证据：`selects_the_pasted_collection_entry_instead_of_the_first_episode`、合集既有用例新增 `requested_cid` 断言。

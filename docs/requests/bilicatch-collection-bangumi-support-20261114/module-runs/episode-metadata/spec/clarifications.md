@@ -18,6 +18,8 @@
 
 - `ep` 链接必须默认选中用户点进来的那一集；`page` 在番剧里恒为 1，无法区分。
 - 决定：`ParseVideoResult.requestedCid: number | null`；前端优先级 cid > page > 首个 playable。
+- 合集解析：`requestedCid` 取入口视频当前分 P 的 cid（`?p=` 用该 P，否则 P1）；只有季级 `ss` 输入为 null。
+- 2026-11-22 修复：此前合集无 `?p=` 时返回 null，导致默认选中 EP1 而不是用户粘贴的视频。
 - 影响：前端默认选中；任务草稿不受影响。
 - 锚定：source-derived（S3 用户指令）。
 

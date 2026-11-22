@@ -17,7 +17,7 @@
 3. 时长归一（PGC 毫秒 → 秒）。
 4. 番剧 section 过滤（只保留正片 `section_type=0`）。
 5. 可用性初判（`badge`、`allow_download`、`section_type`）。
-6. `requestedCid`：`ep` 输入时默认选中该集。
+6. `requestedCid`：合集入口与 `ep` 输入默认选中对应单元（修复前合集无 `?p=` 时为 null，会落到 EP1）。
 7. 缺失/异常字段容错。
 
 ## 范围外
@@ -86,7 +86,7 @@ allowlist P2（集列表数据）、P8（分 P 层级数据）、H2/H4；`Q6` �
 - 时长：优先 `pages[].duration`（秒）；缺省用 `arc.duration`（秒）。
 - 结果：`source="ugc"`、`container.kind="season"`、`container.id=season_id`、`container.title=合集标题`、`title` = 合集标题、`cover` = 合集封面（缺失回退入口 `pic`）、`bvid/aid` = 入口稿件。
 - 能力字段（清晰度/音频）：用入口稿件的 playurl 生成；不逐成员请求。
-- `requestedCid`：若输入带 `?p=`，取入口稿件对应 page 的 cid；否则 null（前端选第一个可下载单元）。
+- `requestedCid`：入口稿件当前分 P 的 `cid`（带 `?p=` 取该 P，否则取 P1），保证用户粘贴的合集内视频默认被选中。
 
 ### 2. 番剧解析
 
@@ -222,7 +222,7 @@ review-sensitive：删除模块 1 的 `E004` 占位分支；新增 HTTP 请求�
 - AC-3：番剧解析返回正片单元，预告被过滤；`epId`/`bvid`/`cid` 与接口一致。
 - AC-4：PGC 时长按 `(ms+500)/1000` 归一；UGC 秒不变。
 - AC-5：`allow_download=0`、会员/付费 badge 判 `unavailable` 且原因对应；其余 `playable`。
-- AC-6：`ep` 输入返回 `requestedCid` 且前端默认选中该集；`ss` 输入为 null。
+- AC-6：合集入口（含带 `?p=`）与 `ep` 输入返回 `requestedCid` 且前端默认选中该单元；`ss` 输入为 null。
 - AC-7：空集/无正片/无 cid 返回 `E004`，不返回空成功。
 - AC-8：模块 1 的 `E004` 占位分支被删除；既有 UGC 分 P 解析不回归。
 - AC-9：`cargo test`、`pnpm test`、`pnpm typecheck` 通过。

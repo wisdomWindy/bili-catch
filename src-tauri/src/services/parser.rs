@@ -727,6 +727,40 @@ mod tests {
             assert_eq!(result.parts[2].bvid, "BV1c94Z6iE9N");
             assert_eq!(result.parts[2].group_index, 2);
             assert_eq!(result.title, "AI信息分享");
+            assert_eq!(result.requested_cid, Some(41191148952));
+        });
+    }
+
+    #[test]
+    fn selects_the_pasted_collection_entry_instead_of_the_first_episode() {
+        tauri::async_runtime::block_on(async {
+            let view: ViewData = serde_json::from_str(
+                r#"{
+                  "bvid":"BV1aaaaaaaaa","aid":2,"title":"Second","pic":"","duration":90,
+                  "owner":{"name":"Up"},
+                  "pages":[{"cid":222,"page":1,"part":"Second","duration":90}],
+                  "ugc_season":{"id":9001,"title":"Season","cover":"","sections":[{"episodes":[
+                    {"bvid":"BV1bbbbbbbbb","cid":111,"title":"first","arc":{"duration":60},"pages":[]},
+                    {"bvid":"BV1aaaaaaaaa","cid":222,"title":"second","arc":{"duration":90},"pages":[]}
+                  ]}]}
+                }"#,
+            )
+            .unwrap();
+            let service = ParserService::new(
+                Arc::new(StaticPort { view, season: None }),
+                Arc::new(FixedClock),
+                Arc::new(FakeAuthContext::new(0)),
+            );
+
+            let result = service.parse("BV1aaaaaaaaa").await.unwrap();
+
+            assert_eq!(result.parts.len(), 2);
+            assert_eq!(result.parts[0].bvid, "BV1bbbbbbbbb");
+            assert_eq!(
+                result.requested_cid,
+                Some(222),
+                "the pasted collection entry must stay selected"
+            );
         });
     }
 

@@ -48,17 +48,7 @@ Finished 1 bundle ... (34.91 MiB)
 | `uninstall.exe /S` | exit 0；程序文件、快捷方式、卸载项移除 |
 | 用户数据 | 仅保留 `download/ models/ temp/` |
 
-## 5. 兜底链路（保留）
-
-若换机器又没有工具链缓存，可继续用离线脚本生成等价 setup：
-
-- `src-tauri/nsis/installer.nsi`
-- `scripts/build-nsis.ps1`（NSIS 3.13 + 自组 payload）
-- 产物同名 `BiliCatch_0.2.2_x64-setup.exe`
-
-官方管道可用时优先用官方产物（含 WebView2 引导、标准升级/安装范围逻辑）。
-
-## 6. 未验证 / 限制
+## 5. 未验证 / 限制
 
 - 安装包未做代码签名，SmartScreen 可能提示。
 - 未在全新 Windows 用户/干净虚拟机验证“无 WebView2 运行时”场景。

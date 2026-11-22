@@ -10,8 +10,6 @@
     "request": "docs/requests/bilicatch-windows-nsis-only-20261114/request.md",
     "verification": "docs/requests/bilicatch-windows-nsis-only-20261114/verification/verification.md",
     "config": "src-tauri/tauri.windows.conf.json",
-    "installer_script": "src-tauri/nsis/installer.nsi",
-    "build_script": "scripts/build-nsis.ps1",
     "official_installer": "src-tauri/target/release/bundle/nsis/BiliCatch_0.2.2_x64-setup.exe",
     "build_log": "docs/requests/bilicatch-windows-nsis-only-20261114/verification/tauri-nsis-official.log"
   },
