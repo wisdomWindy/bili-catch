@@ -20,6 +20,8 @@ pub enum AppErrorCode {
     E016,
     E017,
     E018,
+    E019,
+    E020,
     #[serde(rename = "E_INTERNAL")]
     Internal,
 }

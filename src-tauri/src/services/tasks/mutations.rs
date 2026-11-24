@@ -1,8 +1,8 @@
 use time::{format_description::well_known::Rfc3339, Duration};
 
 use crate::models::{
-    AppError, DownloadTask, TaskAction, TaskControlRequest, TaskProgressEvent, TaskRemovedEvent,
-    TaskStatus,
+    AppError, AppErrorCode, DownloadTask, TaskAction, TaskControlRequest, TaskProgressEvent,
+    TaskRemovedEvent, TaskStatus,
 };
 
 use super::{
@@ -47,12 +47,15 @@ impl TaskManager {
             .tasks
             .iter()
             .position(|record| record.task.id == task_id)
-            .ok_or_else(|| AppError::internal("Task not found"))?;
+            .ok_or_else(|| AppError::new(AppErrorCode::E019, "The task no longer exists"))?;
         let current = candidate.tasks[index].task.clone();
         if !actions_for_status(current.status, candidate.tasks[index].can_cancel_processing)
             .contains(&action)
         {
-            return Err(AppError::internal("Action is not valid for task state"));
+            return Err(AppError::new(
+                AppErrorCode::E020,
+                "The task cannot perform this action in its current state",
+            ));
         }
         if action == TaskAction::Delete {
             let removed = candidate.tasks.remove(index).task;

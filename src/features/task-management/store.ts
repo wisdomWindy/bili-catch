@@ -34,6 +34,7 @@ interface TaskState {
   deletedTaskIds: Record<string, boolean>;
   service: TaskService | null;
   unsubscribe: (() => void) | null;
+  pollTimer: number | null;
   destroyed: boolean;
 }
 
@@ -50,7 +51,7 @@ export const useTaskManagementStore = defineStore("task-management", {
   state: (): TaskState => ({
     byId: {}, sequence: 0, capacity: 100, filter: "all", status: "idle",
     error: null, eventError: null, pending: {}, deletedTaskIds: {}, service: null, unsubscribe: null,
-    destroyed: false,
+    pollTimer: null, destroyed: false,
   }),
   getters: {
     allTasks: (state): DownloadTask[] => Object.values(state.byId),
@@ -99,6 +100,7 @@ export const useTaskManagementStore = defineStore("task-management", {
       const initialization = {} as TaskInitialization;
       const promise = (async () => {
         this.unsubscribe?.();
+        this.stopPolling();
         this.destroyed = false;
         this.service = service;
         this.status = "subscribing";
@@ -109,6 +111,8 @@ export const useTaskManagementStore = defineStore("task-management", {
         let hydrating = true;
         const onProgress = (value: TaskProgressEvent) => hydrating ? buffered.push({ kind: "progress", value }) : this.applyProgress(value);
         const onRemoved = (value: TaskRemovedEvent) => hydrating ? buffered.push({ kind: "removed", value }) : this.applyRemoved(value);
+        const retryDelays = [300, 900];
+        let firstSubscribeError: unknown = null;
         try {
           const unsubscribe = await eventSource.subscribe(onProgress, onRemoved);
           if (this.destroyed || taskInitializations.get(this) !== initialization) {
@@ -116,8 +120,40 @@ export const useTaskManagementStore = defineStore("task-management", {
             return;
           }
           this.unsubscribe = unsubscribe;
+          this.eventError = null;
         } catch (error: unknown) {
-          this.eventError = normalizeIpcError(error);
+          firstSubscribeError = error;
+          this.eventError = {
+            code: "E021",
+            message: normalizeIpcError(error).message,
+          };
+        }
+        if (!this.unsubscribe) {
+          void (async () => {
+            for (const delay of retryDelays) {
+              await new Promise((resolve) => window.setTimeout(resolve, delay));
+              if (this.destroyed) return;
+              try {
+                const unsubscribe = await eventSource.subscribe(onProgress, onRemoved);
+                if (this.destroyed || taskInitializations.get(this) !== initialization) {
+                  unsubscribe();
+                  return;
+                }
+                this.unsubscribe = unsubscribe;
+                this.eventError = null;
+                this.stopPolling();
+                return;
+              } catch (error: unknown) {
+                firstSubscribeError = error;
+              }
+            }
+            if (this.destroyed) return;
+            this.eventError = {
+              code: "E021",
+              message: normalizeIpcError(firstSubscribeError).message,
+            };
+            this.startPolling();
+          })();
         }
         if (this.destroyed || taskInitializations.get(this) !== initialization) return;
 
@@ -205,8 +241,30 @@ export const useTaskManagementStore = defineStore("task-management", {
       try { await this.service.open({ taskId, target }); }
       catch (error: unknown) { this.error = normalizeIpcError(error); }
     },
+    startPolling() {
+      if (this.pollTimer !== null) return;
+      this.pollTimer = window.setInterval(() => { void this.refreshFromSnapshot(); }, 3000);
+    },
+    stopPolling() {
+      if (this.pollTimer === null) return;
+      window.clearInterval(this.pollTimer);
+      this.pollTimer = null;
+    },
+    async refreshFromSnapshot() {
+      if (!this.service || this.destroyed) return;
+      try {
+        const snapshot = await this.service.list();
+        if (this.destroyed) return;
+        this.byId = Object.fromEntries(snapshot.tasks.map((task) => [task.id, task]));
+        this.sequence = Math.max(this.sequence, snapshot.sequence);
+        this.capacity = snapshot.capacity;
+      } catch {
+        // Keep the previous snapshot; the next tick retries.
+      }
+    },
     dispose() {
       this.destroyed = true;
+      this.stopPolling();
       this.unsubscribe?.();
       this.unsubscribe = null;
       taskInitializations.delete(this);

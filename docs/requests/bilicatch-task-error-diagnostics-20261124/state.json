@@ -1,0 +1,36 @@
+{
+  "request_id": "bilicatch-task-error-diagnostics-20261124",
+  "source": {
+    "type": "direct_instruction",
+    "reference": "用户反馈任务页出现「发生未预期的错误」，要求按建议修复并发布 0.4.0（2026-11-24）"
+  },
+  "stage": "complete",
+  "status": "complete",
+  "artifacts": {
+    "request": "docs/requests/bilicatch-task-error-diagnostics-20261124/request.md",
+    "verification": "docs/requests/bilicatch-task-error-diagnostics-20261124/verification/verification.md",
+    "store": "src/features/task-management/store.ts",
+    "store_test": "src/features/task-management/store.test.ts",
+    "error_contract": "src/contracts/app-error.ts",
+    "rust_error": "src-tauri/src/models/app_error.rs",
+    "rust_control": "src-tauri/src/services/tasks/mutations.rs"
+  },
+  "approvals": {
+    "spec_approved": true,
+    "plan_approved": true
+  },
+  "speed_profile": {
+    "level": "S1 local",
+    "reason": "错误码 + 订阅重试/轮询的局部修复，范围可控",
+    "context_budget": "narrow",
+    "artifact_density": "compact"
+  },
+  "module_flow": null,
+  "loop": {
+    "iteration": 1,
+    "state": "complete",
+    "last_completed_stage": "review",
+    "pending_gate": null,
+    "reentry_reason": "new_request"
+  }
+}

@@ -167,4 +167,38 @@ describe("task management store", () => {
     removed({ sequence: 3, taskId: "a" });
     expect(store.byId.a).toBeUndefined();
   });
+
+  it("retries a failed progress subscription before surfacing an error", async () => {
+    const subscribe = vi.fn()
+      .mockRejectedValueOnce(new Error("ipc not ready"))
+      .mockResolvedValueOnce(vi.fn());
+    const service = {
+      list: vi.fn(async () => ({ sequence: 0, capacity: 100 as const, tasks: [] })),
+      create: vi.fn(), control: vi.fn(), pauseAll: vi.fn(), clearCompleted: vi.fn(), open: vi.fn(),
+    };
+    const store = useTaskManagementStore();
+
+    await store.initialize(service, { subscribe });
+    await new Promise((resolve) => window.setTimeout(resolve, 350));
+
+    expect(subscribe).toHaveBeenCalledTimes(2);
+    expect(store.eventError).toBeNull();
+  });
+
+  it("falls back to polling and stops it on dispose when the stream stays unavailable", async () => {
+    const subscribe = vi.fn(async () => { throw new Error("ipc down"); });
+    const list = vi.fn(async () => ({ sequence: 0, capacity: 100 as const, tasks: [] }));
+    const service = {
+      list, create: vi.fn(), control: vi.fn(), pauseAll: vi.fn(), clearCompleted: vi.fn(), open: vi.fn(),
+    };
+    const store = useTaskManagementStore();
+
+    await store.initialize(service, { subscribe });
+    await new Promise((resolve) => window.setTimeout(resolve, 1300));
+
+    expect(store.eventError?.code).toBe("E021");
+    expect(store.pollTimer).not.toBeNull();
+    store.dispose();
+    expect(store.pollTimer).toBeNull();
+  });
 });

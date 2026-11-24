@@ -197,6 +197,9 @@ export const enUS = {
     E015: "No speech was detected",
     E016: "The transcript could not be saved",
     E017: "The speech model failed verification",
+    E019: "The task no longer exists",
+    E020: "This action is not available in the current task state",
+    E021: "Task progress stream failed; retrying",
     E_INTERNAL: "An unexpected error occurred",
   },
 } as const;
