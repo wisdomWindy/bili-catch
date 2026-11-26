@@ -36,6 +36,12 @@ function isSeriesCollapsed(series: ModelSeries): boolean {
   return collapsedSeries.value.has(series);
 }
 
+// `openasr:` 前缀 = OpenASR 托管的模型包：应用内既不能下载也不能删除，
+// 只能在命令行里用 `openasr pull` / `openasr rm` 管理。
+function isExternalModel(model: AsrModel): boolean {
+  return model.fileName.startsWith("openasr:");
+}
+
 function toggleSeries(series: ModelSeries): void {
   const next = new Set(collapsedSeries.value);
   if (next.has(series)) {
@@ -74,6 +80,7 @@ function toggleSeries(series: ModelSeries): void {
               <small>{{ (model.sizeBytes / 1024 / 1024).toFixed(0) }} MB</small>
               <small v-if="model.error" class="model-error">{{ $t(`errors.${model.error.code}`) }}</small>
               <small v-else-if="model.downloadState !== 'idle'" class="model-state">{{ $t(`transcribe.models.states.${model.downloadState}`) }}</small>
+              <small v-if="isExternalModel(model)" class="model-state">{{ $t("transcribe.models.externalHint") }}</small>
             </div>
             <NProgress v-if="activeDownloadStates.has(model.downloadState)" type="line" :height="5" :show-indicator="false"
               :status="model.downloadState === 'verifying' ? 'success' : 'default'"
@@ -83,10 +90,10 @@ function toggleSeries(series: ModelSeries): void {
               <button v-if="activeDownloadStates.has(model.downloadState)" class="icon-button" type="button" :title="$t('transcribe.models.cancelDownload')" @click="$emit('cancel', model.id)">
                 <LoaderCircle class="spin" :size="18" />
               </button>
-              <button v-else-if="!model.valid" class="icon-button" type="button" :title="$t('transcribe.models.download')" @click="$emit('download', model.id)">
+              <button v-else-if="!model.valid && !isExternalModel(model)" class="icon-button" type="button" :title="$t('transcribe.models.download')" @click="$emit('download', model.id)">
                 <Download :size="18" />
               </button>
-              <button v-else class="icon-button" type="button" :title="$t('transcribe.models.delete')" :disabled="model.inUse" @click="$emit('delete', model.id)">
+              <button v-else-if="model.valid && !isExternalModel(model)" class="icon-button" type="button" :title="$t('transcribe.models.delete')" :disabled="model.inUse" @click="$emit('delete', model.id)">
                 <Trash2 :size="18" />
               </button>
             </div>

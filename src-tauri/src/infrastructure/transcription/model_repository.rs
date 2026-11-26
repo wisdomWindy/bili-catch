@@ -12,7 +12,12 @@ use std::{
 use sha2::{Digest, Sha256};
 use url::Url;
 
-use crate::models::{AppError, AppErrorCode, AsrModel, AsrModelId, ModelDownloadState};
+use crate::{
+    infrastructure::transcription::openasr_sidecar::{
+        pack_id_from_manifest, pack_state, InstalledPack, PackState,
+    },
+    models::{AppError, AppErrorCode, AsrModel, AsrModelId, ModelDownloadState},
+};
 
 const DEFAULT_MODEL_MIRROR: &str = "https://hf-mirror.com/ggerganov/whisper.cpp/resolve/main/";
 
@@ -687,6 +692,11 @@ impl FileModelRepository {
             .collect()
     }
 
+    /// 外部工具（OpenASR）托管的模型：BiliCatch 没有可下载的文件，安装交给外部 CLI。
+    pub fn is_external_model(&self, model_id: AsrModelId) -> bool {
+        self.entry(model_id).is_ok_and(|entry| entry.files.is_empty())
+    }
+
     pub fn verify(
         &self,
         model_id: AsrModelId,
@@ -827,23 +837,9 @@ impl FileModelRepository {
     ) -> Result<AsrModel, AppError> {
         // 空文件列表 = 外部工具托管（OpenASR），本仓库不做下载与校验。
         if entry.files.is_empty() {
-            return Ok(AsrModel {
-                id: entry.id,
-                display_name: entry.display_name.clone(),
-                file_name: entry.file_name.clone(),
-                size_bytes: 0,
-                installed: true,
-                valid: true,
-                is_default: entry.id == default_model,
-                in_use: false,
-                path: Some(self.package_root(entry).to_string_lossy().into_owned()),
-                recommended_for: entry.recommended_for.clone(),
-                capabilities: entry.capabilities.clone(),
-                download_state: ModelDownloadState::Completed,
-                downloaded_bytes: 0,
-                error: None,
-                revision: 0,
-            });
+            let pack =
+                pack_id_from_manifest(&entry.file_name).map_or(PackState::Unknown, pack_state);
+            return Ok(self.external_model_state(entry, default_model, pack));
         }
         let paths = entry
             .files
@@ -887,6 +883,58 @@ impl FileModelRepository {
             error: None,
             revision: 0,
         })
+    }
+
+    /// OpenASR 托管的模型：真实安装状态以 OpenASR 自己的模型仓库为准。
+    ///
+    /// 之前这里把所有外部托管模型都写死成“已安装、可用”，于是界面显示绿色对勾，
+    /// 用户点开始转写后必然失败。现在只有 `Missing`（确认没装）才会标成未安装；
+    /// `Unknown`（探测不了）继续沿用旧假设，避免把已装好的用户挡在门外。
+    fn external_model_state(
+        &self,
+        entry: &ModelManifestEntry,
+        default_model: AsrModelId,
+        pack: PackState,
+    ) -> AsrModel {
+        let base = AsrModel {
+            id: entry.id,
+            display_name: entry.display_name.clone(),
+            file_name: entry.file_name.clone(),
+            size_bytes: 0,
+            installed: true,
+            valid: true,
+            is_default: entry.id == default_model,
+            in_use: false,
+            path: Some(self.package_root(entry).to_string_lossy().into_owned()),
+            recommended_for: entry.recommended_for.clone(),
+            capabilities: entry.capabilities.clone(),
+            download_state: ModelDownloadState::Completed,
+            downloaded_bytes: 0,
+            error: None,
+            revision: 0,
+        };
+        match pack {
+            PackState::Unknown => base,
+            PackState::Installed(InstalledPack { path, size_bytes }) => AsrModel {
+                size_bytes,
+                downloaded_bytes: size_bytes,
+                path: Some(path.to_string_lossy().into_owned()),
+                ..base
+            },
+            PackState::Missing => AsrModel {
+                installed: false,
+                valid: false,
+                download_state: ModelDownloadState::Idle,
+                path: None,
+                downloaded_bytes: 0,
+                error: Some(AppError {
+                    code: AppErrorCode::E011,
+                    message: "The OpenASR model pack is not installed".into(),
+                    details: Some("OPENASR_MODEL_MISSING".into()),
+                }),
+                ..base
+            },
+        }
     }
 
     fn package_root(&self, entry: &ModelManifestEntry) -> PathBuf {
@@ -987,10 +1035,95 @@ mod tests {
     };
 
     use super::{
-        official_model_manifest, FileModelRepository, ModelDownloadCancellation, ModelFile,
-        ModelManifestEntry, ReqwestModelDownloader,
+        official_model_manifest, FileModelRepository, InstalledPack, ModelDownloadCancellation,
+        ModelFile, ModelManifestEntry, PackState, ReqwestModelDownloader,
     };
-    use crate::models::AsrModelId;
+    use crate::models::{AppErrorCode, AsrModelId};
+
+    fn external_manifest_entry() -> ModelManifestEntry {
+        ModelManifestEntry {
+            id: AsrModelId::FireRedAsr2Llm,
+            display_name: "FireRedASR2 LLM 8B (OpenASR)".into(),
+            file_name: "openasr:firered2-llm".into(),
+            size_bytes: 0,
+            sha256: String::new(),
+            official_url: String::new(),
+            recommended_for: "test".into(),
+            capabilities: vec![],
+            directory: Some("openasr".into()),
+            // 空文件列表 = 由外部工具管理
+            files: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn external_model_without_its_pack_is_reported_as_not_installed() {
+        let root = tempfile::tempdir().expect("model directory");
+        let repo = FileModelRepository::with_manifest(root.path(), vec![external_manifest_entry()]);
+        let entry = external_manifest_entry();
+
+        let missing =
+            repo.external_model_state(&entry, AsrModelId::FireRedAsr2Llm, PackState::Missing);
+
+        assert!(!missing.installed);
+        assert!(!missing.valid);
+        assert_eq!(missing.path, None);
+        let error = missing.error.expect("missing pack should carry an error");
+        assert_eq!(error.code, AppErrorCode::E011);
+        assert_eq!(error.details.as_deref(), Some("OPENASR_MODEL_MISSING"));
+    }
+
+    #[test]
+    fn external_model_keeps_the_optimistic_state_when_the_pack_cannot_be_inspected() {
+        let root = tempfile::tempdir().expect("model directory");
+        let repo = FileModelRepository::with_manifest(root.path(), vec![external_manifest_entry()]);
+
+        let unknown = repo.external_model_state(
+            &external_manifest_entry(),
+            AsrModelId::FireRedAsr2Llm,
+            PackState::Unknown,
+        );
+
+        assert!(unknown.installed);
+        assert!(unknown.valid);
+        assert!(unknown.error.is_none());
+    }
+
+    #[test]
+    fn external_model_reports_the_installed_pack_path_and_size() {
+        let root = tempfile::tempdir().expect("model directory");
+        let repo = FileModelRepository::with_manifest(root.path(), vec![external_manifest_entry()]);
+        let pack = root.path().join("content");
+
+        let installed = repo.external_model_state(
+            &external_manifest_entry(),
+            AsrModelId::FireRedAsr2Llm,
+            PackState::Installed(InstalledPack {
+                path: pack.clone(),
+                size_bytes: 5_097_451_168,
+            }),
+        );
+
+        assert!(installed.installed);
+        assert!(installed.valid);
+        assert_eq!(installed.size_bytes, 5_097_451_168);
+        assert_eq!(installed.downloaded_bytes, 5_097_451_168);
+        assert_eq!(
+            installed.path.as_deref(),
+            Some(pack.to_string_lossy().as_ref())
+        );
+    }
+
+    #[test]
+    fn only_external_entries_are_refused_by_the_downloader() {
+        let root = tempfile::tempdir().expect("model directory");
+        let external =
+            FileModelRepository::with_manifest(root.path(), vec![external_manifest_entry()]);
+        assert!(external.is_external_model(AsrModelId::FireRedAsr2Llm));
+
+        let local = FileModelRepository::with_manifest(root.path(), official_model_manifest());
+        assert!(!local.is_external_model(AsrModelId::Base));
+    }
 
     #[test]
     fn official_manifest_includes_the_verified_fire_red_asr2_int8_model() {

@@ -106,7 +106,7 @@ export const enUS = {
     options: { title: "Recognition options", model: "Model", language: "Language", format: "Format", gpu: "GPU", outputDirectory: "Output folder", timestamps: "Timestamps", punctuation: "Keep punctuation" },
     models: {
       manage: "Manage models", title: "Local speech models", installed: "Installed", notInstalled: "Not installed",
-      installRequired: "Install the selected model before starting.", download: "Download model", cancelDownload: "Cancel download", delete: "Delete model",
+      installRequired: "Install the selected model before starting.", externalInstallRequired: "This model ships with OpenASR: run openasr pull on this machine first.", externalHint: "Managed by OpenASR: install with openasr pull, remove with openasr rm", download: "Download model", cancelDownload: "Cancel download", delete: "Delete model",
       default: "Default", onDemandHint: "Base is selected by default. Models are downloaded on demand and are not included in the installer.",
       series: { whisper: "Whisper series", fireRedAsr2: "FireRedASR2 series", qwen3: "Qwen3-ASR series" },
       states: { queued: "Waiting to download", downloading: "Downloading", verifying: "Verifying", completed: "Installed", failed: "Download failed", cancelled: "Cancelled" },

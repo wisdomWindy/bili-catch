@@ -86,6 +86,8 @@ jobs:
           Changes:
           - Stops collapsing every task-page failure into "an unexpected error": a missing task now reports E019 and an action that is invalid for the current task state reports E020, each with clear wording.
           - Retries the task progress event subscription up to three times. If it still fails, the page falls back to polling so progress keeps updating, and E021 explains the fallback.
+          - Reports the real installation state of OpenASR-managed model packs, so a missing pack shows "the selected model is not installed" and points at `openasr pull` instead of a generic engine failure. OpenASR models are no longer offered for download or deletion inside the app.
+          - Stops a single silent audio chunk (intro, outro, instrumental tail) from failing the whole transcription with "no speech was detected" after the progress bar already reached 100%.
           - Includes the 0.3.1 fix that keeps the pasted episode selected when the video belongs to a collection.
           - Windows builds remain NSIS-only; no MSI is produced.
 

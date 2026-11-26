@@ -43,6 +43,8 @@ const form = reactive<TranscriptionOptions>({
 });
 
 const selectedModel = computed(() => store.modelsById[form.modelId]);
+// `openasr:` 前缀 = 由 OpenASR 自己安装的模型包，BiliCatch 里下载/删除都没有意义。
+const selectedModelIsExternal = computed(() => Boolean(selectedModel.value?.fileName?.startsWith("openasr:")));
 const fireRedSelected = computed(() => form.modelId === "fire-red-asr2" || form.modelId === "fire-red-asr2-aed" || form.modelId === "fire-red-asr2-llm");
 const cpuOnlySelected = computed(() => fireRedSelected.value || form.modelId === "qwen3-asr");
 const selectedTask = computed(() => selectedTaskId.value ? store.byId[selectedTaskId.value] : null);
@@ -197,7 +199,7 @@ async function retranscribeTask(task = selectedTask.value) {
           <label class="check-option"><input v-model="form.timestamps" type="checkbox" :disabled="['srt','vtt','json'].includes(form.outputFormat)" />{{ t("transcribe.options.timestamps") }}</label>
           <label class="check-option"><input v-model="form.punctuation" type="checkbox" />{{ t("transcribe.options.punctuation") }}</label>
         </div>
-        <div v-if="selectedModel && !selectedModel.valid" class="inline-warning">{{ t("transcribe.models.installRequired") }}</div>
+        <div v-if="selectedModel && !selectedModel.valid" class="inline-warning">{{ selectedModelIsExternal ? t("transcribe.models.externalInstallRequired") : t("transcribe.models.installRequired") }}</div>
         <button class="primary-button start-transcription" type="button" :disabled="!canStart" @click="start"><Play :size="17" />{{ t("transcribe.actions.start") }}</button>
       </section>
 

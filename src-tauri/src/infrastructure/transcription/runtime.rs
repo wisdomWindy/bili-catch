@@ -401,6 +401,14 @@ impl TranscriptionRuntime {
     pub async fn download_model(&self, model_id: AsrModelId) -> Result<AsrModel, AppError> {
         let values = self.settings.snapshot().values;
         let repository = FileModelRepository::new(&values.asr_model_directory);
+        if repository.is_external_model(model_id) {
+            // OpenASR 托管的模型由它自己的 CLI 安装，BiliCatch 没有可下载的文件。
+            return Err(runtime_error(
+                AppErrorCode::E011,
+                "OPENASR_MODEL_EXTERNAL",
+                "The OpenASR model is installed by the OpenASR CLI",
+            ));
+        }
         let cancellation = ModelDownloadCancellation::new();
         {
             let mut active = self
@@ -856,7 +864,7 @@ impl TranscriptionRuntime {
                     },
                 );
             });
-            let output = transcriber
+            let output = match transcriber
                 .transcribe(
                     TranscriberRequest {
                         model_path: model_path.clone(),
@@ -869,7 +877,13 @@ impl TranscriptionRuntime {
                     control.clone(),
                     progress,
                 )
-                .await?;
+                .await
+            {
+                Ok(output) => output,
+                // A silent chunk (intro, outro, instrumental section) must not fail the whole file.
+                Err(error) if error.code == AppErrorCode::E015 => continue,
+                Err(error) => return Err(error),
+            };
             if detected_language.is_none() {
                 detected_language = Some(output.detected_language.clone());
             }

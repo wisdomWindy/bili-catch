@@ -167,4 +167,39 @@ describe("TranscribePage", () => {
     expect(selects[1].get('option[value="ko"]').attributes("disabled")).toBeDefined();
     expect(selects[3].get('option[value="enabled"]').attributes("disabled")).toBeDefined();
   });
+
+  it("points a missing OpenASR pack at the CLI and keeps start disabled", async () => {
+    const pinia = createPinia();
+    setActivePinia(pinia);
+    const service = {
+      listTasks: vi.fn(async () => ({ sequence: 0, tasks: [] })),
+      listModels: vi.fn(async () => ({ sequence: 0, models: [{
+        id: "fire-red-asr2-llm", displayName: "FireRedASR2 LLM 8B (OpenASR)",
+        fileName: "openasr:firered2-llm", sizeBytes: 0,
+        installed: false, valid: false, isDefault: true, inUse: false,
+        recommendedFor: "Highest Chinese accuracy", capabilities: ["external-tool"],
+        downloadState: "idle", downloadedBytes: 0, revision: 0,
+        error: { code: "E011", message: "pack missing" },
+      }] })),
+    } as unknown as TranscriptionService;
+    const events: TranscriptionEventSource = { subscribe: vi.fn(async () => () => undefined) };
+    const router = createAppRouter(createMemoryHistory());
+    await router.push("/transcribe");
+    await router.isReady();
+    const Host = defineComponent({ setup: () => () => h(NMessageProvider, null, { default: () => h(TranscribePage) }) });
+    const wrapper = mount(Host, {
+      global: {
+        plugins: [pinia, router, createAppI18n()],
+        provide: {
+          [transcriptionServiceKey as symbol]: service,
+          [transcriptionEventSourceKey as symbol]: events,
+        },
+      },
+    });
+    await flushPromises();
+
+    await wrapper.get(".option-grid select").setValue("fire-red-asr2-llm");
+    expect(wrapper.text()).toContain("openasr pull");
+    expect(wrapper.get(".start-transcription").attributes("disabled")).toBeDefined();
+  });
 });

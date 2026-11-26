@@ -1,6 +1,7 @@
 use std::{
     ffi::OsString,
-    path::PathBuf,
+    fs,
+    path::{Path, PathBuf},
     process::Stdio,
     time::Duration,
 };
@@ -25,6 +26,11 @@ pub const OPENASR_MODEL: &str = "firered2-llm";
 pub const OPENASR_MAX_CHUNK_SECONDS: f64 = 40.0;
 /// 覆盖路径用的环境变量，便于未打包时手动验证。
 pub const OPENASR_BIN_ENV: &str = "BILICATCH_OPENASR_BIN";
+/// 模型清单里外部托管模型的前缀，`openasr:<pack id>`。
+pub const OPENASR_PACK_PREFIX: &str = "openasr:";
+/// OpenASR 自己的 home 与模型目录覆盖项。
+pub const OPENASR_HOME_ENV: &str = "OPENASR_HOME";
+pub const OPENASR_MODELS_DIR_ENV: &str = "OPENASR_MODELS_DIR";
 
 pub fn build_openasr_args(request: &TranscriberRequest) -> Vec<OsString> {
     // firered2-llm 内置中英语种集，显式传 -l 会被拒绝（实测：unsupported_capability）。
@@ -87,6 +93,134 @@ fn binary_name() -> &'static str {
     } else {
         "openasr"
     }
+}
+
+/// 某个外部模型包在本机的安装情况。
+///
+/// `Unknown` 只表示“探测不了”（没有可用的 home 目录），调用方必须退回旧的
+/// “已安装”假设：宁可让转写失败后报 E011，也不能因为探测不到就把用户已经
+/// 装好的模型标成未安装、连选都选不了。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackState {
+    Installed(InstalledPack),
+    Missing,
+    Unknown,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledPack {
+    /// 对象存储里的 `.oasr` 包路径。
+    pub path: PathBuf,
+    /// 包的实际大小，用于在模型列表里显示体积。
+    pub size_bytes: u64,
+}
+
+/// `models/refs/<pack id>/<quant>.json` 的记录（OpenASR 0.1.4x 实测）。
+#[derive(Debug, Deserialize)]
+struct PackRef {
+    #[serde(default)]
+    model_id: String,
+    #[serde(default)]
+    path: String,
+    #[serde(default)]
+    size_bytes: u64,
+}
+
+/// 从清单里的 `openasr:<pack id>` 取出 pack id。
+pub fn pack_id_from_manifest(file_name: &str) -> Option<&str> {
+    file_name
+        .strip_prefix(OPENASR_PACK_PREFIX)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+}
+
+/// OpenASR 的 home：`OPENASR_HOME` 优先，否则 `%USERPROFILE%`/`$HOME` 下的 `.openasr`。
+pub fn openasr_home() -> Option<PathBuf> {
+    if let Some(value) = non_empty_env(OPENASR_HOME_ENV) {
+        return Some(PathBuf::from(value));
+    }
+    let profile = non_empty_env("USERPROFILE").or_else(|| non_empty_env("HOME"))?;
+    Some(PathBuf::from(profile).join(".openasr"))
+}
+
+/// 模型包目录：`OPENASR_MODELS_DIR` 优先，否则 `<home>/models`。
+pub fn openasr_models_directory() -> Option<PathBuf> {
+    if let Some(value) = non_empty_env(OPENASR_MODELS_DIR_ENV) {
+        return Some(PathBuf::from(value));
+    }
+    Some(openasr_home()?.join("models"))
+}
+
+fn non_empty_env(name: &str) -> Option<std::ffi::OsString> {
+    std::env::var_os(name).filter(|value| !value.is_empty())
+}
+
+/// 只读探测：该 pack id 是否已经由 OpenASR 自己装好。
+pub fn pack_state(pack_id: &str) -> PackState {
+    openasr_models_directory().map_or(PackState::Unknown, |directory| {
+        pack_state_at(&directory, pack_id)
+    })
+}
+
+/// 不依赖环境变量的版本，便于测试。
+///
+/// 布局（OpenASR 0.1.41 实测）：
+/// ```text
+/// <models>/refs/<pack id>/<quant>.json   -> { model_id, quant, path, size_bytes, sha256 }
+/// <models>/objects/sha256/<sha>/content  -> 真正的 .oasr 包
+/// ```
+/// 只有 refs 记录指向的文件真实存在且大小吻合才算装好；对象文件被删掉、
+/// 或者只有 refs 残留，都按“没装”处理，让用户重装而不是继续失败。
+pub fn pack_state_at(models_dir: &Path, pack_id: &str) -> PackState {
+    if !models_dir.is_dir() {
+        return PackState::Missing;
+    }
+    if unexpected_layout(models_dir) {
+        return PackState::Unknown;
+    }
+    let Ok(records) = fs::read_dir(models_dir.join("refs").join(pack_id)) else {
+        return PackState::Missing;
+    };
+    for record in records.flatten() {
+        let record_path = record.path();
+        if record_path.extension().and_then(|value| value.to_str()) != Some("json") {
+            continue;
+        }
+        let Ok(bytes) = fs::read(&record_path) else {
+            continue;
+        };
+        let Ok(reference) = serde_json::from_slice::<PackRef>(&bytes) else {
+            continue;
+        };
+        let model_id = reference.model_id.trim();
+        if !model_id.is_empty() && model_id != pack_id {
+            continue;
+        }
+        let pack_path = PathBuf::from(reference.path.trim());
+        let Ok(metadata) = fs::metadata(&pack_path) else {
+            continue;
+        };
+        if !metadata.is_file() {
+            continue;
+        }
+        if reference.size_bytes > 0 && metadata.len() != reference.size_bytes {
+            continue;
+        }
+        return PackState::Installed(InstalledPack {
+            path: pack_path,
+            size_bytes: metadata.len(),
+        });
+    }
+    PackState::Missing
+}
+
+/// `models` 目录存在、但没有认识的 `refs/` 子目录，说明是别的 OpenASR 版本
+/// 或别的目录约定：这时给不出“装了没装”的结论，绝不能猜成“没装”，
+/// 否则用户已经能用的模型会在界面上被锁死。
+fn unexpected_layout(models_dir: &Path) -> bool {
+    models_dir.is_dir()
+        && !models_dir.join("refs").is_dir()
+        && fs::read_dir(models_dir).is_ok_and(|mut entries| entries.any(|entry| entry.is_ok()))
 }
 
 pub fn parse_openasr_json(
@@ -280,19 +414,7 @@ impl Transcriber for OpenAsrTranscriber {
             .map_err(|_| pipe_error())?
             .map_err(|_| pipe_error())?;
         if !status.success() {
-            let diagnostics = String::from_utf8_lossy(&stderr[..stderr.len().min(8 * 1024)]);
-            let details = if diagnostics.contains("integrity verification") {
-                "OPENASR_BACKEND_INTEGRITY"
-            } else if diagnostics.contains("memory") {
-                "OPENASR_MEMORY"
-            } else {
-                "SIDECAR_FAILED"
-            };
-            return Err(sidecar_error(
-                AppErrorCode::E014,
-                details,
-                "The OpenASR engine failed",
-            ));
+            return Err(classify_failure(&stderr));
         }
         progress(1.0);
         parse_openasr_json(&stdout, request.offset_ms, request.language)
@@ -307,6 +429,32 @@ fn pipe_error() -> AppError {
     )
 }
 
+/// 把 OpenASR 的 stderr 归类成用户能自己处理的失败原因。
+///
+/// `transcribe --offline` 在模型包缺失时会以退出码 4 结束并输出
+/// `Model 'firered2-llm' is not installed and OpenASR is offline`。
+/// 这是“模型没装”，不是“引擎坏了”：必须回 E011，否则界面只会显示
+/// 笼统的“本地转写引擎运行失败”，用户无从下手。
+fn classify_failure(raw: &[u8]) -> AppError {
+    let diagnostics = String::from_utf8_lossy(&raw[..raw.len().min(8 * 1024)]);
+    let lowered = diagnostics.to_ascii_lowercase();
+    if lowered.contains("not installed") || lowered.contains("openasr pull") {
+        return sidecar_error(
+            AppErrorCode::E011,
+            "OPENASR_MODEL_MISSING",
+            "The OpenASR model pack is not installed",
+        );
+    }
+    let details = if lowered.contains("integrity verification") {
+        "OPENASR_BACKEND_INTEGRITY"
+    } else if lowered.contains("memory") {
+        "OPENASR_MEMORY"
+    } else {
+        "SIDECAR_FAILED"
+    };
+    sidecar_error(AppErrorCode::E014, details, "The OpenASR engine failed")
+}
+
 fn sidecar_error(code: AppErrorCode, details: &str, message: &str) -> AppError {
     AppError {
         code,
@@ -317,7 +465,10 @@ fn sidecar_error(code: AppErrorCode, details: &str, message: &str) -> AppError {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_openasr_args, parse_openasr_json, OPENASR_MODEL};
+    use super::{
+        build_openasr_args, classify_failure, pack_id_from_manifest, pack_state_at,
+        parse_openasr_json, InstalledPack, PackState, OPENASR_MODEL,
+    };
     use crate::models::{GpuMode, TranscriptionLanguage};
     use crate::services::transcription::ports::TranscriberRequest;
 
@@ -372,5 +523,120 @@ mod tests {
         .unwrap_err();
 
         assert_eq!(error.code, crate::models::AppErrorCode::E015);
+    }
+
+    #[test]
+    fn missing_model_pack_is_reported_as_a_missing_model_not_a_broken_engine() {
+        let diagnostics = b"Error: Model 'firered2-llm' is not installed and OpenASR is offline.\n\
+Run: openasr pull firered2-llm\n";
+
+        let error = classify_failure(diagnostics);
+
+        assert_eq!(error.code, crate::models::AppErrorCode::E011);
+        assert_eq!(error.details.as_deref(), Some("OPENASR_MODEL_MISSING"));
+    }
+
+    #[test]
+    fn other_engine_failures_stay_on_the_engine_error_code() {
+        let integrity = classify_failure(b"backend integrity verification failed");
+        assert_eq!(integrity.details.as_deref(), Some("OPENASR_BACKEND_INTEGRITY"));
+
+        let memory = classify_failure(b"out of memory while loading");
+        assert_eq!(memory.details.as_deref(), Some("OPENASR_MEMORY"));
+
+        let generic = classify_failure(b"thread panicked");
+        assert_eq!(generic.code, crate::models::AppErrorCode::E014);
+        assert_eq!(generic.details.as_deref(), Some("SIDECAR_FAILED"));
+    }
+
+    /// 真实布局（openasr 0.1.41 + `openasr pull whisper-tiny` 实测）：
+    /// `<models>/refs/<id>/<quant>.json` 指向 `<models>/objects/sha256/<sha>/content`。
+    fn fake_openasr_home(root: &std::path::Path, pack_id: &str, pack_size: usize) -> (std::path::PathBuf, std::path::PathBuf) {
+        let models = root.join("models");
+        let object = models
+            .join("objects")
+            .join("sha256")
+            .join("13346d7bd47d349ae9e35be5cc8595997be0c2d2a5bbe41b4e3ef1c60a98ca17")
+            .join("content");
+        std::fs::create_dir_all(object.parent().unwrap()).unwrap();
+        std::fs::write(&object, vec![0_u8; pack_size]).unwrap();
+        let refs = models.join("refs").join(pack_id);
+        std::fs::create_dir_all(&refs).unwrap();
+        let record = serde_json::json!({
+            "model_id": pack_id,
+            "display_name": "Test pack",
+            "quant": "q8_0",
+            "suffix": "q8",
+            "pull": format!("{pack_id}:q8"),
+            "path": object.to_string_lossy(),
+            "sha256": "13346d7bd47d349ae9e35be5cc8595997be0c2d2a5bbe41b4e3ef1c60a98ca17",
+            "size_bytes": pack_size,
+        });
+        std::fs::write(refs.join("q8_0.json"), record.to_string()).unwrap();
+        (models, object)
+    }
+
+    #[test]
+    fn installed_pack_is_detected_from_the_refs_record() {
+        let root = tempfile::tempdir().unwrap();
+        let (models, object) = fake_openasr_home(root.path(), "whisper-tiny", 32);
+
+        assert_eq!(
+            pack_state_at(&models, "whisper-tiny"),
+            PackState::Installed(InstalledPack {
+                path: object,
+                size_bytes: 32
+            })
+        );
+        // 仓库里没有别的模型
+        assert_eq!(pack_state_at(&models, "firered2-llm"), PackState::Missing);
+        // 连 models 目录都没有 = 从没装过任何包
+        assert_eq!(pack_state_at(&root.path().join("missing"), "firered2-llm"), PackState::Missing);
+    }
+
+    #[test]
+    fn stale_ref_without_the_pack_object_counts_as_not_installed() {
+        let root = tempfile::tempdir().unwrap();
+        let (models, object) = fake_openasr_home(root.path(), "whisper-tiny", 32);
+        std::fs::remove_file(&object).unwrap();
+
+        assert_eq!(pack_state_at(&models, "whisper-tiny"), PackState::Missing);
+    }
+
+    #[test]
+    fn pack_size_mismatch_counts_as_not_installed() {
+        let root = tempfile::tempdir().unwrap();
+        let (models, object) = fake_openasr_home(root.path(), "whisper-tiny", 32);
+        std::fs::write(&object, vec![0_u8; 8]).unwrap();
+
+        assert_eq!(pack_state_at(&models, "whisper-tiny"), PackState::Missing);
+    }
+
+    #[test]
+    fn a_models_directory_with_an_unknown_layout_is_not_reported_as_missing() {
+        let root = tempfile::tempdir().unwrap();
+        let models = root.path().join("models");
+        std::fs::create_dir_all(&models).unwrap();
+        // 别的 OpenASR 版本可能把 .oasr 直接放在 models 下：这种布局不认识，
+        // 只能回 Unknown，让调用方保持“已安装”的乐观假设。
+        std::fs::write(models.join("firered2-llm-q4_k.oasr"), b"pack").unwrap();
+
+        assert_eq!(pack_state_at(&models, "firered2-llm"), PackState::Unknown);
+    }
+
+    #[test]
+    fn an_empty_models_directory_means_nothing_is_installed() {
+        let root = tempfile::tempdir().unwrap();
+        let models = root.path().join("models");
+        std::fs::create_dir_all(&models).unwrap();
+
+        assert_eq!(pack_state_at(&models, "firered2-llm"), PackState::Missing);
+    }
+
+    #[test]
+    fn manifest_pack_prefix_is_parsed_leniently() {
+        assert_eq!(pack_id_from_manifest("openasr:firered2-llm"), Some("firered2-llm"));
+        assert_eq!(pack_id_from_manifest("openasr: "), None);
+        assert_eq!(pack_id_from_manifest("ggml-base.bin"), None);
     }
 }

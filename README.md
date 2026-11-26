@@ -62,6 +62,13 @@ Windows 仅发布 NSIS 安装包，不发布 MSI。所有历史版本和更新�
 | Whisper Base | 多语言通用转写 | CPU / GPU | 约 142 MiB | 默认选择，速度与精度较均衡 |
 | Whisper Large v3 | 多语言、更高精度 | CPU / GPU | 约 2.9 GiB | 适合内存和算力充足的设备 |
 | FireRedASR2 CTC INT8 | 中文、英文、方言、口音和歌声 | CPU | 约 740 MiB | 中英文高质量转写优先选择 |
+| FireRedASR2 LLM 8B（经 OpenASR） | 中文、英文，追求最高精度 | CPU，依赖外部 OpenASR 运行时 | 约 5.1 GB（OpenASR 模型包） | 需先用 `openasr pull firered2-llm` 安装模型包，否则任务会直接报“所选语音模型尚未安装” |
+
+外部 OpenASR 模型不由 BiliCatch 下载，也不会在应用内删除：模型管理里显示的是 OpenASR 自己仓库（`<OPENASR_HOME>/models/refs`）里的真实安装状态，未安装时会标注“未安装”并禁用开始转写。转写时以 `--offline` 调用 `openasr`，缺少模型包会立即失败而不会自动联网拉取。首次使用 FireRedASR2 LLM 8B 前，在装有 OpenASR 的机器上执行：
+
+~~~bash
+openasr pull firered2-llm
+~~~
 
 模型文件不会打包进安装程序，而是在用户明确操作后下载到模型目录。下载完成前会校验文件大小和 SHA-256；校验失败的文件不会发布为可用模型。可在“设置”中更换模型目录或配置 HTTPS 模型下载源；更换目录不会自动搬迁已有模型。
 

@@ -154,4 +154,29 @@ describe("ModelManager", () => {
     expect(document.body.textContent).toContain("语音模型下载失败");
     wrapper.unmount();
   });
+
+  it("points OpenASR-managed models at the CLI instead of offering a download", () => {
+    const external: AsrModel = {
+      ...models[0],
+      id: "fire-red-asr2-llm",
+      displayName: "FireRedASR2 LLM 8B (OpenASR)",
+      fileName: "openasr:firered2-llm",
+      installed: false,
+      valid: false,
+      isDefault: false,
+      error: { code: "E011", message: "pack missing" },
+    };
+    const wrapper = mount(ModelManager, {
+      attachTo: document.body,
+      props: { show: true, models: [external] },
+      global: { plugins: [createAppI18n()] },
+    });
+
+    expect(document.body.textContent).toContain("所选语音模型尚未安装");
+    expect(document.body.textContent).toContain("openasr pull");
+    // 既不能下载也不能删除：安装与卸载都归 OpenASR 自己管
+    expect(document.body.querySelector(".model-row button.icon-button")).toBeNull();
+    expect(wrapper.emitted("download")).toBeUndefined();
+    wrapper.unmount();
+  });
 });
