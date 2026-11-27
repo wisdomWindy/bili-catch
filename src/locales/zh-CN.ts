@@ -111,7 +111,7 @@ export const zhCN = {
     options: { title: "识别参数", model: "模型", language: "语言", format: "格式", gpu: "GPU", outputDirectory: "输出目录", timestamps: "时间戳", punctuation: "保留标点" },
     models: {
       manage: "模型管理", title: "本地识别模型", installed: "已安装", notInstalled: "未安装",
-      installRequired: "所选模型尚未安装，请先打开模型管理。", externalInstallRequired: "该模型由 OpenASR 提供：请先在本机执行 openasr pull 安装模型包。", externalHint: "由 OpenASR 管理：用 openasr pull 安装，用 openasr rm 删除", download: "下载模型", cancelDownload: "取消下载", delete: "删除模型",
+      installRequired: "所选模型尚未安装，请先打开模型管理。", externalInstallRequired: "该模型由 OpenASR 提供：请在“模型管理”里点下载按钮安装（约 5 GB）。", externalHint: "点右侧按钮即可下载：OpenASR 会负责校验与安装，装好前也可手动执行 openasr pull", download: "下载模型", cancelDownload: "取消下载", delete: "删除模型",
       default: "默认", onDemandHint: "Base 是默认选择。模型按需下载，不随安装包提供。",
       series: { whisper: "Whisper 系列", fireRedAsr2: "FireRedASR2 系列", qwen3: "Qwen3-ASR 系列" },
       states: { queued: "等待下载", downloading: "正在下载", verifying: "正在校验", completed: "已安装", failed: "下载失败", cancelled: "已取消" },

@@ -223,6 +223,148 @@ fn unexpected_layout(models_dir: &Path) -> bool {
         && fs::read_dir(models_dir).is_ok_and(|mut entries| entries.any(|entry| entry.is_ok()))
 }
 
+/// `openasr pull` 的下载进度行：`Downloaded 25179414/63310208 bytes`。
+pub fn parse_download_line(line: &str) -> Option<(u64, u64)> {
+    let rest = line.trim().strip_prefix("Downloaded ")?;
+    let (downloaded, total) = rest.split_once('/')?;
+    let total = total.split_whitespace().next()?;
+    Some((downloaded.trim().parse().ok()?, total.parse().ok()?))
+}
+
+/// 安装阶段：下载 / 校验 / 已装好。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PullStage {
+    Downloading,
+    Verifying,
+    Installed,
+}
+
+pub fn parse_pull_stage(line: &str) -> Option<PullStage> {
+    let line = line.trim();
+    if line.starts_with("Verifying") {
+        Some(PullStage::Verifying)
+    } else if line.starts_with("Installed ") {
+        Some(PullStage::Installed)
+    } else {
+        None
+    }
+}
+
+/// 安装包时固定走 hf-mirror：国内直连 huggingface 会一直重试、看起来像卡死，
+/// `auto` 在这种网络下也不会自己切到镜像（实测 3 分钟没有任何字节进度）。
+pub fn build_pull_args(pack_id: &str) -> Vec<OsString> {
+    vec![
+        "pull".into(),
+        pack_id.into(),
+        "--source".into(),
+        "hf-mirror".into(),
+    ]
+}
+
+/// 用 OpenASR 自己的 CLI 安装模型包（`openasr pull <pack>`），并把进度回调出去。
+///
+/// BiliCatch 不自己下载 `.oasr`：包的落盘位置、校验、refs 记录都归 OpenASR 管，
+/// 复制一份反而会让 `openasr list` 与转录路径对不上。
+pub async fn pull_pack(
+    binary: &Path,
+    pack_id: &str,
+    is_cancelled: std::sync::Arc<dyn Fn() -> bool + Send + Sync>,
+    on_progress: std::sync::Arc<dyn Fn(u64, u64) + Send + Sync>,
+    on_stage: std::sync::Arc<dyn Fn(PullStage) + Send + Sync>,
+) -> Result<(), AppError> {
+    use tokio::io::{AsyncBufReadExt, BufReader};
+
+    let mut command = Command::new(binary);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let mut child = command
+        .args(build_pull_args(pack_id))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true)
+        .spawn()
+        .map_err(|_| {
+            sidecar_error(
+                AppErrorCode::E012,
+                "OPENASR_PULL_UNAVAILABLE",
+                "The OpenASR CLI could not be started",
+            )
+        })?;
+    let stdout = child.stdout.take().ok_or_else(pull_pipe_error)?;
+    let stderr = child.stderr.take().ok_or_else(pull_pipe_error)?;
+
+    let last_lines = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let mut readers = Vec::new();
+    for stream in [Box::new(stdout) as Box<dyn tokio::io::AsyncRead + Unpin + Send>, Box::new(stderr)] {
+        let progress = on_progress.clone();
+        let stage = on_stage.clone();
+        let tail = last_lines.clone();
+        readers.push(tokio::spawn(async move {
+            let mut lines = BufReader::new(stream).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                if let Some((downloaded, total)) = parse_download_line(&line) {
+                    progress(downloaded, total);
+                }
+                if let Some(event) = parse_pull_stage(&line) {
+                    stage(event);
+                }
+                if let Ok(mut tail) = tail.lock() {
+                    tail.push(line);
+                    if tail.len() > 40 {
+                        tail.remove(0);
+                    }
+                }
+            }
+        }));
+    }
+
+    let status = loop {
+        if is_cancelled() {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+            for reader in readers {
+                reader.abort();
+            }
+            return Err(sidecar_error(
+                AppErrorCode::E012,
+                "MODEL_DOWNLOAD_CANCELLED",
+                "The OpenASR model download was cancelled",
+            ));
+        }
+        match child.try_wait().map_err(|_| pull_pipe_error())? {
+            Some(status) => break status,
+            None => tokio::time::sleep(Duration::from_millis(200)).await,
+        }
+    };
+    for reader in readers {
+        let _ = reader.await;
+    }
+    if status.success() {
+        return Ok(());
+    }
+    let diagnostics = last_lines
+        .lock()
+        .map(|lines| lines.join("\n"))
+        .unwrap_or_default();
+    Err(AppError {
+        code: AppErrorCode::E012,
+        message: "The OpenASR model pack could not be downloaded".into(),
+        details: Some(format!(
+            "OPENASR_PULL_FAILED: {}",
+            diagnostics.chars().take(400).collect::<String>()
+        )),
+    })
+}
+
+fn pull_pipe_error() -> AppError {
+    sidecar_error(
+        AppErrorCode::E012,
+        "OPENASR_PULL_PIPE_FAILED",
+        "The OpenASR download stream is unavailable",
+    )
+}
+
 pub fn parse_openasr_json(
     bytes: &[u8],
     offset_ms: u64,
@@ -466,8 +608,9 @@ fn sidecar_error(code: AppErrorCode, details: &str, message: &str) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::{
-        build_openasr_args, classify_failure, pack_id_from_manifest, pack_state_at,
-        parse_openasr_json, InstalledPack, PackState, OPENASR_MODEL,
+        build_openasr_args, build_pull_args, classify_failure, pack_id_from_manifest, pack_state_at,
+        parse_download_line, parse_openasr_json, parse_pull_stage, InstalledPack, PackState,
+        PullStage, OPENASR_MODEL,
     };
     use crate::models::{GpuMode, TranscriptionLanguage};
     use crate::services::transcription::ports::TranscriberRequest;
@@ -638,5 +781,38 @@ Run: openasr pull firered2-llm\n";
         assert_eq!(pack_id_from_manifest("openasr:firered2-llm"), Some("firered2-llm"));
         assert_eq!(pack_id_from_manifest("openasr: "), None);
         assert_eq!(pack_id_from_manifest("ggml-base.bin"), None);
+    }
+
+    #[test]
+    fn parses_openasr_pull_download_and_stage_lines() {
+        // 实测输出：`Downloaded 25179414/63310208 bytes`
+        assert_eq!(
+            parse_download_line("Downloaded 25179414/63310208 bytes"),
+            Some((25_179_414, 63_310_208))
+        );
+        assert_eq!(
+            parse_download_line("Downloaded 5097451168/5097451168 bytes"),
+            Some((5_097_451_168, 5_097_451_168))
+        );
+        assert_eq!(parse_download_line("Installed whisper-tiny:q8 at C:\\x"), None);
+
+        assert_eq!(
+            parse_pull_stage("Verifying firered2-llm:q4"),
+            Some(PullStage::Verifying)
+        );
+        assert_eq!(
+            parse_pull_stage("Installed firered2-llm:q4 at C:\\models\\content"),
+            Some(PullStage::Installed)
+        );
+        assert_eq!(parse_pull_stage("Downloaded 1/2 bytes"), None);
+    }
+
+    #[test]
+    fn pull_args_pin_the_reachable_mirror() {
+        let args = build_pull_args("firered2-llm")
+            .iter()
+            .map(|value| value.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(args, vec!["pull", "firered2-llm", "--source", "hf-mirror"]);
     }
 }

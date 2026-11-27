@@ -199,7 +199,8 @@ describe("TranscribePage", () => {
     await flushPromises();
 
     await wrapper.get(".option-grid select").setValue("fire-red-asr2-llm");
-    expect(wrapper.text()).toContain("openasr pull");
+    expect(wrapper.text()).toContain("模型管理");
+    expect(wrapper.text()).toContain("5 GB");
     expect(wrapper.get(".start-transcription").attributes("disabled")).toBeDefined();
   });
 });

@@ -155,7 +155,7 @@ describe("ModelManager", () => {
     wrapper.unmount();
   });
 
-  it("points OpenASR-managed models at the CLI instead of offering a download", () => {
+  it("offers a download button for OpenASR-managed models and keeps delete hidden", () => {
     const external: AsrModel = {
       ...models[0],
       id: "fire-red-asr2-llm",
@@ -173,10 +173,13 @@ describe("ModelManager", () => {
     });
 
     expect(document.body.textContent).toContain("所选语音模型尚未安装");
-    expect(document.body.textContent).toContain("openasr pull");
-    // 既不能下载也不能删除：安装与卸载都归 OpenASR 自己管
-    expect(document.body.querySelector(".model-row button.icon-button")).toBeNull();
-    expect(wrapper.emitted("download")).toBeUndefined();
+    expect(document.body.textContent).toContain("OpenASR");
+    const buttons = document.body.querySelectorAll<HTMLButtonElement>(".model-row button.icon-button");
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    expect(wrapper.emitted("download")).toEqual([["fire-red-asr2-llm"]]);
+    // 卸载交给 OpenASR 自己管，应用内不提供删除
+    expect(wrapper.emitted("delete")).toBeUndefined();
     wrapper.unmount();
   });
 });

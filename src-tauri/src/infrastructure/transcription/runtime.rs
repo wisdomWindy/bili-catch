@@ -24,7 +24,10 @@ use crate::{
             FileModelRepository, ModelDownloadCancellation, ReqwestModelDownloader,
         },
         ocr_engine::OcrEngine,
-        openasr_sidecar::{OpenAsrTranscriber, OPENASR_MAX_CHUNK_SECONDS},
+        openasr_sidecar::{
+            pack_id_from_manifest, pull_pack, resolve_openasr_binary, OpenAsrTranscriber, PullStage,
+            OPENASR_MAX_CHUNK_SECONDS,
+        },
         platform_subtitle::language_matches,
         qwen3_asr_sidecar::{Qwen3AsrSidecarTranscriber, QWEN3_MAX_CHUNK_SECONDS},
         whisper_sidecar::WhisperSidecarTranscriber,
@@ -402,12 +405,10 @@ impl TranscriptionRuntime {
         let values = self.settings.snapshot().values;
         let repository = FileModelRepository::new(&values.asr_model_directory);
         if repository.is_external_model(model_id) {
-            // OpenASR 托管的模型由它自己的 CLI 安装，BiliCatch 没有可下载的文件。
-            return Err(runtime_error(
-                AppErrorCode::E011,
-                "OPENASR_MODEL_EXTERNAL",
-                "The OpenASR model is installed by the OpenASR CLI",
-            ));
+            // OpenASR 托管的包没有可下载的仓库文件，但可以代跑它自己的 `pull`。
+            return self
+                .install_external_model(&repository, model_id, values.default_asr_model)
+                .await;
         }
         let cancellation = ModelDownloadCancellation::new();
         {
@@ -479,6 +480,120 @@ impl TranscriptionRuntime {
             }
         }
         result
+    }
+
+    /// OpenASR 托管的模型包：代跑 `openasr pull`，把下载/校验进度照常推给界面。
+    async fn install_external_model(
+        &self,
+        repository: &FileModelRepository,
+        model_id: AsrModelId,
+        default_model: AsrModelId,
+    ) -> Result<AsrModel, AppError> {
+        let model = repository
+            .list(default_model)?
+            .into_iter()
+            .find(|model| model.id == model_id)
+            .ok_or_else(|| internal("MODEL_NOT_FOUND"))?;
+        let pack_id = pack_id_from_manifest(&model.file_name)
+            .ok_or_else(|| {
+                runtime_error(
+                    AppErrorCode::E012,
+                    "OPENASR_PACK_ID_INVALID",
+                    "The OpenASR model id is invalid",
+                )
+            })?
+            .to_owned();
+        let binary = resolve_openasr_binary().map_err(|_| {
+            runtime_error(
+                AppErrorCode::E012,
+                "OPENASR_UNAVAILABLE",
+                "The OpenASR CLI is unavailable",
+            )
+        })?;
+
+        let cancellation = ModelDownloadCancellation::new();
+        {
+            let mut active = self
+                .model_downloads
+                .lock()
+                .map_err(|_| internal("MODEL_DOWNLOAD_LOCK"))?;
+            if active.contains_key(&model_id) {
+                return Err(runtime_error(
+                    AppErrorCode::E012,
+                    "MODEL_DOWNLOAD_ACTIVE",
+                    "The model is already downloading",
+                ));
+            }
+            active.insert(model_id, cancellation.clone());
+        }
+
+        let sink = self.model_events.clone();
+        let sequence = self.model_sequence.clone();
+        let progress_model = model.clone();
+        let emit = std::sync::Arc::new(
+            move |state: ModelDownloadState, downloaded: u64, total: u64| {
+                let revision = sequence.fetch_add(1, Ordering::AcqRel) + 1;
+                let mut value = progress_model.clone();
+                value.download_state = state;
+                value.downloaded_bytes = downloaded;
+                if total > 0 {
+                    value.size_bytes = total;
+                }
+                value.error = None;
+                value.revision = revision;
+                sink.model_changed(revision, &value);
+            },
+        );
+        let on_progress = {
+            let emit = emit.clone();
+            std::sync::Arc::new(move |downloaded: u64, total: u64| {
+                emit(ModelDownloadState::Downloading, downloaded, total);
+            })
+        };
+        let on_stage = {
+            let emit = emit.clone();
+            std::sync::Arc::new(move |stage: PullStage| match stage {
+                PullStage::Verifying => emit(ModelDownloadState::Verifying, 0, 0),
+                PullStage::Installed => emit(ModelDownloadState::Completed, 0, 0),
+                PullStage::Downloading => {}
+            })
+        };
+        let cancel_flag = cancellation.clone();
+        let is_cancelled = std::sync::Arc::new(move || cancel_flag.is_cancelled());
+
+        // 先亮出“正在下载”，pulling 5 GB 期间界面不会停在“等待下载”。
+        emit(ModelDownloadState::Downloading, 0, 0);
+        let result = pull_pack(&binary, &pack_id, is_cancelled, on_progress, on_stage).await;
+        self.model_downloads
+            .lock()
+            .map_err(|_| internal("MODEL_DOWNLOAD_LOCK"))?
+            .remove(&model_id);
+
+        let revision = self.model_sequence.fetch_add(1, Ordering::AcqRel) + 1;
+        let mut current = repository
+            .list(default_model)?
+            .into_iter()
+            .find(|model| model.id == model_id)
+            .ok_or_else(|| internal("MODEL_UNKNOWN"))?;
+        current.revision = revision;
+        match result {
+            Ok(()) => {
+                current.download_state = ModelDownloadState::Completed;
+                current.error = None;
+                self.model_events.model_changed(revision, &current);
+                Ok(current)
+            }
+            Err(error) => {
+                current.download_state = if cancellation.is_cancelled() {
+                    ModelDownloadState::Cancelled
+                } else {
+                    ModelDownloadState::Failed
+                };
+                current.error = Some(error.clone());
+                self.model_events.model_changed(revision, &current);
+                Err(error)
+            }
+        }
     }
 
     pub fn cancel_model_download(&self, model_id: AsrModelId) -> Result<AsrModel, AppError> {
