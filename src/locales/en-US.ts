@@ -74,6 +74,11 @@ export const enUS = {
     lossless: "Lossless",
     sourceUnsupported: "Source unsupported",
     audioFallback: "Lossless audio is unavailable. Switched to original-bitrate M4A",
+    audioQualityHint: {
+      mp3: "MP3 is always re-encoded: a 320K file cannot sound better than the source, so pick it only when MP3 is required.",
+      m4a: "M4A keeps the original stream: Bilibili's own track (Dolby Atmos when available) is copied as-is, with no re-encode.",
+      flac: "FLAC lossless: only selectable when the video ships a Hi-Res lossless track, and saved without loss.",
+    },
     videoFallback: "The selected video quality or codec changed with your login state; a compatible option was selected",
     unavailable: "No available options",
     unavailableReasons: {

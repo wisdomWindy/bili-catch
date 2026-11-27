@@ -142,6 +142,11 @@ pub fn build_ffmpeg_args(request: &AudioProcessRequest) -> Result<Vec<OsString>,
                 "-movflags".into(),
                 "+faststart".into(),
             ]);
+            // `.m4a` 会被 ffmpeg 推断成 ipod 复用器，而 ipod 不接受 ec-3；
+            // 杜比音轨必须显式指定 mp4 复用器（mp4 与 m4a 是同一个容器）。
+            if request.source_tier == AudioSourceTier::DolbyAtmos {
+                args.extend(["-f".into(), "mp4".into()]);
+            }
         }
         AudioOutputProfile::FlacLossless => {
             args.extend(["-c:a".into(), "flac".into()]);
@@ -300,8 +305,8 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use super::{
-        DeferredFfmpegMediaProcessor, FfmpegLocator, FfmpegMediaProcessor, FfmpegRunner,
-        RunnerOutcome, TokioFfmpegRunner,
+        build_ffmpeg_args, DeferredFfmpegMediaProcessor, FfmpegLocator, FfmpegMediaProcessor,
+        FfmpegRunner, RunnerOutcome, TokioFfmpegRunner,
     };
     use crate::{
         models::{AppError, AudioOutputProfile},
@@ -466,5 +471,48 @@ mod tests {
         std::fs::write(&sidecar, b"ffmpeg").unwrap();
 
         assert_eq!(FfmpegLocator::resolve(&sidecar).unwrap(), sidecar);
+    }
+
+    fn request_with_tier(
+        root: &std::path::Path,
+        profile: AudioOutputProfile,
+        tier: AudioSourceTier,
+    ) -> AudioProcessRequest {
+        AudioProcessRequest {
+            source_path: root.join("source.m4s"),
+            cover_path: root.join("cover.jpg"),
+            output_path: root.join("processed.m4a"),
+            output_profile: profile,
+            source_tier: tier,
+            title: "Fixture".into(),
+            uploader: "UP".into(),
+        }
+    }
+
+    #[test]
+    fn dolby_original_forces_the_mp4_muxer_because_ipod_rejects_ec3() {
+        let root = std::path::Path::new("C:/work");
+        let dolby = build_ffmpeg_args(&request_with_tier(
+            root,
+            AudioOutputProfile::M4aOriginal,
+            AudioSourceTier::DolbyAtmos,
+        ))
+        .unwrap()
+        .iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+        assert!(dolby.windows(2).any(|pair| pair == ["-f", "mp4"]));
+        assert!(dolby.windows(2).any(|pair| pair == ["-c:a", "copy"]));
+
+        let aac = build_ffmpeg_args(&request_with_tier(
+            root,
+            AudioOutputProfile::M4aOriginal,
+            AudioSourceTier::Lossy,
+        ))
+        .unwrap()
+        .iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+        assert!(!aac.iter().any(|value| value == "-f"));
     }
 }

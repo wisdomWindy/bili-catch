@@ -119,7 +119,9 @@ impl SettingsDefaults {
             max_concurrent_tasks: 3,
             connections_per_task: 8,
             default_video_quality: VideoQualityId::P1080,
-            default_audio_format: AudioFormat::Mp3,
+            // 默认“原样保存”而不是 MP3：MP3 必然要重新编码，从 192K 源转出
+            // 320K 只是数字变大，音质只降不升。
+            default_audio_format: AudioFormat::M4a,
             theme: ThemePreference::System,
             locale: "zh-CN".into(),
             notify_on_complete: true,

@@ -35,6 +35,14 @@ pub(crate) fn adapt_audio_source_candidates(play: &PlayData) -> Vec<AudioSourceC
         .iter()
         .map(|stream| adapt_stream(stream, AudioSourceTier::Lossy))
         .collect::<Vec<_>>();
+    if let Some(dolby) = dash.dolby.as_ref().and_then(|dolby| dolby.audio.as_ref()) {
+        candidates.extend(
+            dolby
+                .streams()
+                .iter()
+                .map(|stream| adapt_stream(stream, AudioSourceTier::DolbyAtmos)),
+        );
+    }
     if let Some(stream) = dash
         .flac
         .as_ref()
@@ -97,7 +105,11 @@ mod tests {
                 "flac":{"display":true,"audio":{
                   "id":30251,"base_url":"https://a.bilivideo.com/lossless.m4s",
                   "backup_url":[],"bandwidth":1411000,"mime_type":"audio/flac","codecs":"fLaC"
-                }}
+                }},
+                "dolby":{"type":1,"audio":[{
+                  "id":30250,"base_url":"https://a.bilivideo.com/dolby.m4s",
+                  "backup_url":[],"bandwidth":448000,"mime_type":"audio/mp4","codecs":"ec-3"
+                }]}
               }
             }"#,
         )
@@ -105,13 +117,15 @@ mod tests {
 
         let candidates = adapt_audio_source_candidates(&play);
 
-        assert_eq!(candidates.len(), 2);
+        assert_eq!(candidates.len(), 3);
         assert_eq!(candidates[0].media.id, 30280);
         assert_eq!(candidates[0].tier, AudioSourceTier::Lossy);
         assert_eq!(candidates[0].media.kind, MediaKind::Audio);
         assert_eq!(candidates[0].media.backup_urls.len(), 1);
-        assert_eq!(candidates[1].media.id, 30251);
-        assert_eq!(candidates[1].tier, AudioSourceTier::HiResLossless);
+        assert_eq!(candidates[1].media.id, 30250);
+        assert_eq!(candidates[1].tier, AudioSourceTier::DolbyAtmos);
+        assert_eq!(candidates[2].media.id, 30251);
+        assert_eq!(candidates[2].tier, AudioSourceTier::HiResLossless);
     }
 
     #[test]

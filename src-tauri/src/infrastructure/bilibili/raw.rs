@@ -154,6 +154,16 @@ impl PlayData {
                         .filter(|flac| flac.display)
                         .and_then(|flac| flac.audio.as_ref())
                         .is_some_and(|stream| !stream.resolved_base_url().trim().is_empty())
+                    || dash
+                        .dolby
+                        .as_ref()
+                        .and_then(|dolby| dolby.audio.as_ref())
+                        .is_some_and(|audio| {
+                            audio
+                                .streams()
+                                .iter()
+                                .any(|stream| !stream.resolved_base_url().trim().is_empty())
+                        })
             });
         if playable {
             Ok(())
@@ -173,6 +183,32 @@ pub(crate) struct RawDash {
     #[serde(default)]
     pub audio: Vec<RawAudioStream>,
     pub flac: Option<RawFlac>,
+    /// 杜比全景声轨（30250，ec-3）。B站只在大会员 + 支持杜比的视频上返回。
+    pub dolby: Option<RawDolby>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub(crate) struct RawDolby {
+    #[serde(default)]
+    pub audio: Option<RawDolbyAudio>,
+}
+
+/// 实测里 `dolby.audio` 是数组，但不同版本也可能给单个对象；两种都接受，
+/// 否则一次未知形状就会让整条 playurl 反序列化失败、连带下载也挂掉。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub(crate) enum RawDolbyAudio {
+    Many(Vec<RawAudioStream>),
+    One(RawAudioStream),
+}
+
+impl RawDolbyAudio {
+    pub(crate) fn streams(&self) -> &[RawAudioStream] {
+        match self {
+            Self::Many(streams) => streams,
+            Self::One(stream) => std::slice::from_ref(stream),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -278,7 +314,7 @@ impl RawAudioStream {
 
 #[cfg(test)]
 mod tests {
-    use super::{RawAudioStream, RawVideoStream};
+    use super::{RawAudioStream, RawDash, RawVideoStream};
 
     #[test]
     fn accepts_bilibili_streams_with_both_field_namings() {
@@ -303,6 +339,35 @@ mod tests {
         .unwrap();
         assert_eq!(audio.resolved_base_url(), "https://snake/audio");
         assert_eq!(audio.resolved_mime_type(), "audio/mp4");
+    }
+
+    #[test]
+    fn accepts_a_dolby_audio_array_object_and_null() {
+        let many: RawDash = serde_json::from_str(
+            r#"{"video":[],"audio":[],
+                "dolby":{"type":1,"audio":[
+                  {"id":30250,"base_url":"https://snake/dolby","bandwidth":448000,
+                   "mime_type":"audio/mp4","codecs":"ec-3"}]}}"#,
+        )
+        .unwrap();
+        let dolby = many.dolby.expect("dolby block").audio.expect("dolby audio");
+        assert_eq!(dolby.streams().len(), 1);
+        assert_eq!(dolby.streams()[0].id, 30250);
+        assert_eq!(dolby.streams()[0].resolved_base_url(), "https://snake/dolby");
+
+        // 有些响应把 audio 直接写成对象
+        let one: RawDash = serde_json::from_str(
+            r#"{"video":[],"audio":[],
+                "dolby":{"audio":{"id":30250,"baseUrl":"https://camel/dolby","bandwidth":448000}}}"#,
+        )
+        .unwrap();
+        let dolby = one.dolby.expect("dolby block").audio.expect("dolby audio");
+        assert_eq!(dolby.streams()[0].resolved_base_url(), "https://camel/dolby");
+
+        // 没有杜比时必须是 null/缺省，而不是解析失败
+        let none: RawDash =
+            serde_json::from_str(r#"{"video":[],"audio":[],"dolby":null}"#).unwrap();
+        assert!(none.dolby.is_none());
     }
 }
 

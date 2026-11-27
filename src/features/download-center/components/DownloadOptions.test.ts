@@ -72,6 +72,17 @@ describe("DownloadOptions audio mode", () => {
     const available = render(true, true);
     expect(available.get("[data-testid='audio-format'] option[value='flac']").attributes("disabled")).toBeUndefined();
   });
+
+  it("explains that MP3 re-encodes and M4A keeps the original stream", async () => {
+    const wrapper = render(true, true);
+    expect(wrapper.get("[data-testid='audio-quality-hint']").text()).toContain("重新编码");
+
+    await wrapper.setProps({ audioFormat: "m4a", audioBitrateId: "source" });
+    expect(wrapper.get("[data-testid='audio-quality-hint']").text()).toContain("不转码");
+
+    await wrapper.setProps({ audioFormat: null, audioBitrateId: null });
+    expect(wrapper.find("[data-testid='audio-quality-hint']").exists()).toBe(false);
+  });
 });
 
 describe("DownloadOptions video mode", () => {

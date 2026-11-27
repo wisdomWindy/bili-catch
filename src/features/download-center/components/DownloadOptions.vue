@@ -100,6 +100,9 @@ function checked(event: Event): boolean {
         </select>
       </label>
     </div>
+    <p v-if="mode === 'audio-only' && audioFormat" class="audio-quality-hint" data-testid="audio-quality-hint">
+      {{ $t(`download.audioQualityHint.${audioFormat}`) }}
+    </p>
     <label v-if="mode !== 'video-only'" class="download-transcription-option">
       <input class="switch-control" type="checkbox" role="switch" :checked="autoTranscribe" @change="emit('autoTranscribe', checked($event))" />
       <span><strong>{{ $t("download.autoTranscribe") }}</strong><small>{{ $t("download.autoTranscribeHint") }}</small></span>
