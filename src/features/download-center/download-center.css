@@ -82,3 +82,4 @@
   .action-buttons { justify-content: flex-end; }
 }
 .audio-quality-hint { margin: 8px 0 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
+.audio-unavailable-hint { margin: 8px 0 0; color: var(--color-warning); font-size: 12px; line-height: 1.5; }

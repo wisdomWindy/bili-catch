@@ -75,6 +75,7 @@ export const enUS = {
     pcm: "Uncompressed PCM",
     sourceUnsupported: "Source unsupported",
     audioFallback: "Lossless audio is unavailable. Switched to original-bitrate M4A",
+    audioUnavailableHint: "This parse returned no audio streams (Bilibili occasionally returns an empty list). Parsing again usually restores it.",
     audioQualityHint: {
       mp3: "MP3 is always re-encoded: a 320K file cannot sound better than the source, so pick it only when MP3 is required.",
       m4a: "M4A keeps the original stream: Bilibili's own track (Dolby Atmos when available) is copied as-is, with no re-encode.",

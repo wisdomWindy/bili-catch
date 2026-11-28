@@ -100,6 +100,9 @@ function checked(event: Event): boolean {
         </select>
       </label>
     </div>
+    <p v-if="mode === 'audio-only' && audioFormats.length === 0" class="audio-unavailable-hint" data-testid="audio-unavailable-hint">
+      {{ $t("download.audioUnavailableHint") }}
+    </p>
     <p v-if="mode === 'audio-only' && audioFormat" class="audio-quality-hint" data-testid="audio-quality-hint">
       {{ $t(`download.audioQualityHint.${audioFormat}`) }}
     </p>

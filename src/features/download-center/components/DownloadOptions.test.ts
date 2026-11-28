@@ -88,6 +88,29 @@ describe("DownloadOptions audio mode", () => {
     await wrapper.setProps({ audioFormat: null, audioBitrateId: null });
     expect(wrapper.find("[data-testid='audio-quality-hint']").exists()).toBe(false);
   });
+
+  it("explains a parse that came back without audio streams", () => {
+    const wrapper = mount(DownloadOptions, {
+      props: {
+        mode: "audio-only",
+        qualities: [],
+        codecs: [],
+        videoVariants: [],
+        audioFormats: [],
+        audioCapability: { maxLossyKbps: null, losslessAvailable: false, hiResAvailable: false },
+        authenticated: false,
+        qualityId: null,
+        codec: null,
+        audioFormat: null,
+        audioBitrateId: null,
+        autoTranscribe: false,
+      },
+      global: { plugins: [createAppI18n()] },
+    });
+
+    expect(wrapper.get("[data-testid='audio-unavailable-hint']").text()).toContain("重新解析");
+    wrapper.unmount();
+  });
 });
 
 describe("DownloadOptions video mode", () => {

@@ -109,10 +109,24 @@ pub(crate) fn capabilities_from_play(play: &PlayData) -> PlayCapabilities {
         .as_ref()
         .and_then(|dash| dash.flac.as_ref())
         .is_some_and(|flac| flac.display && flac.audio.is_some());
-    let mut audio_formats = if audio_bitrates.is_empty() {
-        Vec::new()
-    } else {
+    let dolby_available = play
+        .dash
+        .as_ref()
+        .and_then(|dash| dash.dolby.as_ref())
+        .and_then(|dolby| dolby.audio.as_ref())
+        .is_some_and(|audio| !audio.streams().is_empty());
+    // 是否“有音频”看的是有没有音频轨，而不是码率是否可读：B 站偶发返回
+    // bandwidth=0 的条目，按码率判断会让整个音频格式下拉变成“暂无可用选项”。
+    let has_audio = play
+        .dash
+        .as_ref()
+        .is_some_and(|dash| !dash.audio.is_empty())
+        || lossless_available
+        || dolby_available;
+    let mut audio_formats = if has_audio {
         vec![AudioFormat::M4a, AudioFormat::Mp3, AudioFormat::Wav]
+    } else {
+        Vec::new()
     };
     if lossless_available {
         audio_formats.push(AudioFormat::Flac);
@@ -428,6 +442,7 @@ fn codec_for(value: &str) -> Option<VideoCodec> {
 #[cfg(test)]
 mod tests {
     use super::adapt_parse_result;
+    use super::capabilities_from_play;
     use super::duration_ms_to_seconds;
     use crate::infrastructure::bilibili::raw::{ApiResponse, PlayData, ViewData};
     use crate::models::{
@@ -497,6 +512,32 @@ mod tests {
             vec![AudioFormat::M4a, AudioFormat::Mp3, AudioFormat::Wav]
         );
         assert_eq!(result.audio_bitrates[0].id, "192");
+    }
+
+    #[test]
+    fn zero_bandwidth_audio_still_exposes_the_audio_formats() {
+        // B 站偶发返回 bandwidth=0 的音频条目；不能因此把格式列表判成空。
+        let play: PlayData = serde_json::from_str(
+            r#"{
+          "accept_quality":[],"accept_description":[],
+          "dash":{
+            "video":[{"id":32,"baseUrl":"https://a.bilivideo.com/v.m4s","backupUrl":[],
+                      "bandwidth":1000000,"mimeType":"video/mp4","codecs":"avc1.64001f"}],
+            "audio":[{"id":30216,"baseUrl":"https://a.bilivideo.com/a.m4s","backupUrl":[],
+                      "bandwidth":0,"mimeType":"audio/mp4","codecs":"mp4a.40.2"}]
+          }
+        }"#,
+        )
+        .expect("fixture should parse");
+
+        let capabilities = capabilities_from_play(&play);
+
+        assert!(!capabilities.audio_formats.is_empty());
+        assert!(capabilities.audio_formats.contains(&AudioFormat::M4a));
+        assert!(capabilities.audio_formats.contains(&AudioFormat::Wav));
+        // 码率未知时不编造数字，只是列表里没有可选项
+        assert!(capabilities.audio_bitrates.is_empty());
+        assert_eq!(capabilities.audio_capability.max_lossy_kbps, None);
     }
 
     #[test]

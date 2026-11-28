@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 
@@ -6,8 +6,8 @@ use crate::infrastructure::bilibili::{
     adapt_audio_metadata, adapt_audio_source_candidates, adapt_bangumi_result,
     adapt_collection_result, adapt_parse_result, adapt_video_source_candidates,
     bangumi_episode_availability, normalize_input, select_part, BilibiliClient, BilibiliPort,
-    Clock, NormalizedInput, PlayData, PortError, SeasonData, SystemClock, VideoId, WbiKey,
-    WbiKeyCache,
+    Clock, NormalizedInput, PlayData, PortError, SeasonData, SystemClock, VideoId,
+    WbiKey, WbiKeyCache,
 };
 use crate::models::{
     AppError, AppErrorCode, AudioOutputProfile, Availability, DownloadMode, ParseVideoResult,
@@ -26,6 +26,43 @@ pub(crate) struct ParserService {
     clock: Arc<dyn Clock>,
     auth: Arc<dyn AuthContextProvider>,
     wbi_cache: WbiKeyCache,
+}
+
+/// 缺音频时最多请求几次 playurl。
+const AUDIO_PLAYURL_ATTEMPTS: usize = 3;
+
+/// 重试间隔（第 n 次失败后等 n 个档位）。
+fn audio_retry_delay(attempt: usize) -> Duration {
+    #[cfg(test)]
+    {
+        let _ = attempt;
+        Duration::from_millis(1)
+    }
+    #[cfg(not(test))]
+    {
+        Duration::from_millis(350 * attempt as u64)
+    }
+}
+
+/// 这份 playurl 里有没有任何可用的音频轨（普通 AAC / 杜比 / 无损）。
+fn has_audio_streams(play: &PlayData) -> bool {
+    let Some(dash) = play.dash.as_ref() else {
+        return false;
+    };
+    if !dash.audio.is_empty() {
+        return true;
+    }
+    if dash
+        .flac
+        .as_ref()
+        .is_some_and(|flac| flac.display && flac.audio.is_some())
+    {
+        return true;
+    }
+    dash.dolby
+        .as_ref()
+        .and_then(|dolby| dolby.audio.as_ref())
+        .is_some_and(|audio| !audio.streams().is_empty())
 }
 
 impl ParserService {
@@ -111,6 +148,28 @@ impl ParserService {
         }
     }
 
+    /// 拿一份「至少有音频流」的 playurl。
+    ///
+    /// B 站偶尔会先返回一份 `dash.audio` 为空的响应（风控/首次访问，重试即可恢复），
+    /// 如果直接采信，界面上的音频格式就没有可选项，用户只能反复重新解析。
+    /// 这里在缺音频时按退避重试几次，全部失败才把最后一份响应交出去。
+    async fn fetch_playurl_with_audio(
+        &self,
+        video_id: &VideoId,
+        cid: u64,
+        auth: &ValidatedAuthContext,
+    ) -> Result<PlayData, AppError> {
+        let mut attempt = 0usize;
+        loop {
+            let play = self.fetch_playurl_with_retry(video_id, cid, auth).await?;
+            attempt += 1;
+            if has_audio_streams(&play) || attempt >= AUDIO_PLAYURL_ATTEMPTS {
+                return Ok(play);
+            }
+            tokio::time::sleep(audio_retry_delay(attempt)).await;
+        }
+    }
+
     pub async fn parse(&self, input: &str) -> Result<ParseVideoResult, AppError> {
         let normalized = self.resolved_input(input).await?;
         let auth = self.auth.validated_context().await?;
@@ -140,7 +199,7 @@ impl ParserService {
         let view = self.port.fetch_view(&normalized.video_id, &auth).await?;
         let part = select_part(&view, normalized.requested_page)?;
         let play = self
-            .fetch_playurl_with_retry(&normalized.video_id, part.cid, &auth)
+            .fetch_playurl_with_audio(&normalized.video_id, part.cid, &auth)
             .await?;
 
         if view.ugc_season.is_some() {
@@ -171,10 +230,27 @@ impl ParserService {
                     && bangumi_episode_availability(episode).0 == Availability::Playable
             })
         })?;
-        self.port
-            .fetch_bangumi_playurl(episode.ep_id, episode.cid, auth)
+        self.fetch_bangumi_playurl_with_audio(episode.ep_id, episode.cid, auth)
             .await
             .ok()
+    }
+
+    /// 番剧同样可能拿到缺音频的 playurl，重试逻辑与 UGC 一致。
+    async fn fetch_bangumi_playurl_with_audio(
+        &self,
+        ep_id: u64,
+        cid: u64,
+        auth: &ValidatedAuthContext,
+    ) -> Result<PlayData, AppError> {
+        let mut attempt = 0usize;
+        loop {
+            let play = self.port.fetch_bangumi_playurl(ep_id, cid, auth).await?;
+            attempt += 1;
+            if has_audio_streams(&play) || attempt >= AUDIO_PLAYURL_ATTEMPTS {
+                return Ok(play);
+            }
+            tokio::time::sleep(audio_retry_delay(attempt)).await;
+        }
     }
 
     async fn fetch_bangumi_source(
@@ -204,7 +280,9 @@ impl ParserService {
         if availability == Availability::Unavailable {
             return Err(permission_error(reason));
         }
-        let play = self.port.fetch_bangumi_playurl(ep_id, cid, auth).await?;
+        let play = self
+            .fetch_bangumi_playurl_with_audio(ep_id, cid, auth)
+            .await?;
         Ok((play, season))
     }
 }
@@ -408,6 +486,7 @@ mod tests {
         key_calls: AtomicUsize,
         play_calls: AtomicUsize,
         rejected_signature_attempts: usize,
+        audio_less_attempts: usize,
     }
 
     struct FakeAuthContext {
@@ -451,7 +530,14 @@ mod tests {
                 key_calls: AtomicUsize::new(0),
                 play_calls: AtomicUsize::new(0),
                 rejected_signature_attempts,
+                audio_less_attempts: 0,
             }
+        }
+
+        /// 模拟 B 站偶发返回的「有视频、没音频」响应：前 n 次 playurl 都没有音轨。
+        fn with_audio_less(mut self, attempts: usize) -> Self {
+            self.audio_less_attempts = attempts;
+            self
         }
     }
 
@@ -470,6 +556,16 @@ mod tests {
             "id":30216,"baseUrl":"https://a.bilivideo.com/audio.m4s","backupUrl":[],
             "bandwidth":64000,"mimeType":"audio/mp4","codecs":"mp4a.40.2"
           }]}
+        }"#,
+        )
+        .unwrap()
+    }
+
+    fn play_fixture_without_audio() -> PlayData {
+        serde_json::from_str(
+            r#"{
+          "accept_quality":[32],"accept_description":["480P"],
+          "dash":{"video":[{"id":32,"baseUrl":"https://a.bilivideo.com/video.m4s","backupUrl":[],"bandwidth":1000000,"mimeType":"video/mp4","codecs":"avc1.64001f"}],"audio":[]}
         }"#,
         )
         .unwrap()
@@ -508,6 +604,8 @@ mod tests {
             let call = self.play_calls.fetch_add(1, Ordering::SeqCst);
             if call < self.rejected_signature_attempts {
                 Err(PortError::Signature)
+            } else if call < self.rejected_signature_attempts + self.audio_less_attempts {
+                Ok(play_fixture_without_audio())
             } else {
                 Ok(play_fixture())
             }
@@ -974,6 +1072,49 @@ mod tests {
             assert_eq!(port.view_calls.load(Ordering::SeqCst), 2);
             assert_eq!(port.play_calls.load(Ordering::SeqCst), 2);
             assert_eq!(auth.calls.load(Ordering::SeqCst), 2);
+        });
+    }
+
+    #[test]
+    fn parse_retries_a_playurl_that_arrives_without_audio() {
+        tauri::async_runtime::block_on(async {
+            let port = Arc::new(MockPort::new(0).with_audio_less(1));
+            let service = ParserService::new(
+                port.clone(),
+                Arc::new(FixedClock),
+                Arc::new(FakeAuthContext::new(0)),
+            );
+
+            let result = service.parse("BV1xx411c7BF").await.unwrap();
+
+            // 第一次没有音轨，重试后才拿到
+            assert_eq!(port.play_calls.load(Ordering::SeqCst), 2);
+            assert!(!result.audio_formats.is_empty(), "audio formats must survive the retry");
+            assert!(result
+                .audio_formats
+                .contains(&crate::models::AudioFormat::M4a));
+            assert_eq!(result.audio_bitrates[0].id, "64");
+        });
+    }
+
+    #[test]
+    fn parse_stops_retrying_when_audio_never_arrives() {
+        tauri::async_runtime::block_on(async {
+            let port = Arc::new(MockPort::new(0).with_audio_less(usize::MAX));
+            let service = ParserService::new(
+                port.clone(),
+                Arc::new(FixedClock),
+                Arc::new(FakeAuthContext::new(0)),
+            );
+
+            let result = service.parse("BV1xx411c7BF").await.unwrap();
+
+            // 最多重试 AUDIO_PLAYURL_ATTEMPTS 次，然后把最后一次结果交给上层
+            assert_eq!(
+                port.play_calls.load(Ordering::SeqCst),
+                AUDIO_PLAYURL_ATTEMPTS
+            );
+            assert!(result.audio_formats.is_empty());
         });
     }
 }

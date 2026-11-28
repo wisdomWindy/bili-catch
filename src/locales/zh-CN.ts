@@ -75,6 +75,7 @@ export const zhCN = {
     pcm: "PCM 未压缩",
     sourceUnsupported: "源不支持",
     audioFallback: "无损音频当前不可用，已切换为 M4A 原始码率",
+    audioUnavailableHint: "这次解析没有拿到音频流（B 站偶发返回空列表），重新解析一次通常就能恢复。",
     audioQualityHint: {
       mp3: "MP3 一定会重新编码：320K 不会比源音质更好，只适合必须用 MP3 的场景。",
       m4a: "M4A 原样保存：直接写入 B 站提供的音轨（优先杜比全景声），不转码、不损失音质。",

@@ -84,6 +84,8 @@ jobs:
           release_base="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           cat > "$RUNNER_TEMP/release-body.md" <<BODY
           Changes:
+          - Fixes the "audio unavailable" dead end on the first parse: Bilibili occasionally returns a DASH payload with video but no audio streams, so the parser now retries the playurl up to three times before accepting it, and the download page explains that parsing again usually restores the audio.
+          - Audio availability no longer depends on the reported bitrate: a stream with bandwidth=0 still exposes M4A/MP3/WAV instead of collapsing the format list to "no available options".
           - Adds WAV output for audio-only downloads: uncompressed PCM keeps the source sample rate, uses 24-bit for Hi-Res lossless sources and 16-bit otherwise, and never re-encodes. It is lossless only when the video ships a Hi-Res FLAC track; converting a lossy AAC source to WAV keeps the same quality at about 10x the file size.
           - Adds a download button for the OpenASR-managed FireRedASR2 LLM 8B pack: the model manager now runs `openasr pull` for you, shows byte-level download and verification progress in the model row, supports cancelling, and flips to "installed" when the pack is ready. Downloads use the hf-mirror source because `auto` keeps retrying unreachable Hugging Face endpoints on mainland networks.
           - Keeps audio-only downloads at the quality Bilibili actually serves: M4A is now the default and copies the original track instead of re-encoding it, so no generation loss is introduced by the app.
