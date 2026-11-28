@@ -174,7 +174,7 @@ export const zhCN = {
     },
     options: {
       quality: { p360: "360P", p480: "480P", p720: "720P", p1080: "1080P", p1080Plus: "1080P+", p4k: "4K", hdr: "HDR", p8k: "8K" },
-      audio: { mp3: "MP3", m4a: "M4A", flac: "FLAC" },
+      audio: { mp3: "MP3", m4a: "M4A", flac: "FLAC", wav: "WAV" },
       close: { minimizeToTray: "最小化到托盘", exit: "直接退出" },
       asrModel: { tiny: "Tiny（最快）", base: "Base（推荐）", small: "Small", medium: "Medium", largev3: "Large v3（最高精度）", fireredasr2: "FireRedASR2（高质量中英/方言）", fireredasr2aed: "FireRedASR2 AED（中文最准，带字级时间戳）", fireredasr2llm: "FireRedASR2 LLM 8B（经 OpenASR，需 16GB 内存）", qwen3asr: "Qwen3-ASR（日韩等 50+ 语种，自带标点）" },
       transcriptionLanguage: { auto: "自动检测", zh: "简体中文", zhTW: "繁体中文", en: "英语", ja: "日语", ko: "韩语" },

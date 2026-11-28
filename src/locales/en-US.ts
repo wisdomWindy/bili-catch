@@ -174,7 +174,7 @@ export const enUS = {
     },
     options: {
       quality: { p360: "360P", p480: "480P", p720: "720P", p1080: "1080P", p1080Plus: "1080P+", p4k: "4K", hdr: "HDR", p8k: "8K" },
-      audio: { mp3: "MP3", m4a: "M4A", flac: "FLAC" },
+      audio: { mp3: "MP3", m4a: "M4A", flac: "FLAC", wav: "WAV" },
       close: { minimizeToTray: "Minimize to tray", exit: "Exit" },
       asrModel: { tiny: "Tiny (fastest)", base: "Base (recommended)", small: "Small", medium: "Medium", largev3: "Large v3 (most accurate)", fireredasr2: "FireRedASR2 (high-quality Chinese/English)", fireredasr2aed: "FireRedASR2 AED (best Chinese accuracy, word timestamps)", fireredasr2llm: "FireRedASR2 LLM 8B (via OpenASR, 16 GB RAM)", qwen3asr: "Qwen3-ASR (Japanese, Korean and 50+ languages, built-in punctuation)" },
       transcriptionLanguage: { auto: "Auto detect", zh: "Simplified Chinese", zhTW: "Traditional Chinese", en: "English", ja: "Japanese", ko: "Korean" },
