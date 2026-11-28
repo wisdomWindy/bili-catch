@@ -44,7 +44,7 @@ describe("settings contracts", () => {
 
   it("keeps the approved media option values available to settings", () => {
     expect(VIDEO_QUALITY_IDS).toEqual(["16", "32", "64", "80", "112", "120", "125", "127"]);
-    expect(AUDIO_FORMATS).toEqual(["mp3", "m4a", "flac"]);
+    expect(AUDIO_FORMATS).toEqual(["mp3", "m4a", "flac", "wav"]);
     expect(VIDEO_QUALITY_OPTIONS.map(({ value }) => value)).toEqual(VIDEO_QUALITY_IDS);
     expect(AUDIO_FORMAT_OPTIONS.map(({ value }) => value)).toEqual(AUDIO_FORMATS);
     expect(THEME_OPTIONS.map(({ value }) => value)).toEqual(["light", "dark", "system"]);

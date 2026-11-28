@@ -19,7 +19,7 @@ const props = defineProps<{
   autoTranscribe: boolean;
 }>();
 
-const formatOrder: readonly AudioFormat[] = ["mp3", "m4a", "flac"];
+const formatOrder: readonly AudioFormat[] = ["mp3", "m4a", "flac", "wav"];
 const profileOptions = computed(() => props.audioFormat ? audioProfileOptions(props.audioFormat) : []);
 const profileDisabled = computed(() => props.audioFormat !== "mp3" || profileOptions.value.length === 0);
 const availableVideoCodecs = computed(() =>
@@ -95,7 +95,7 @@ function checked(event: Event): boolean {
         <select data-testid="audio-profile" :aria-label="$t('download.audioProfile')" :value="audioBitrateId ?? ''" :disabled="profileDisabled" @change="emit('audioBitrate', selected($event))">
           <option v-if="profileOptions.length === 0" value="" disabled>{{ $t("download.unavailable") }}</option>
           <option v-for="option in profileOptions" :key="option.id" :value="option.id">
-            {{ option.id === 'source' ? $t('download.originalBitrate') : option.id === 'lossless' ? $t('download.lossless') : option.label }}
+            {{ option.id === 'source' ? (audioFormat === 'wav' ? $t('download.pcm') : $t('download.originalBitrate')) : option.id === 'lossless' ? $t('download.lossless') : option.label }}
           </option>
         </select>
       </label>

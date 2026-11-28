@@ -93,7 +93,9 @@ pub fn build_ffmpeg_args(request: &AudioProcessRequest) -> Result<Vec<OsString>,
         ));
     }
 
-    let mut args = vec![
+    // WAV 容器装不下封面图，走这条分支时不带 cover 输入。
+    let with_cover = request.output_profile != AudioOutputProfile::WavPcm;
+    let mut args: Vec<OsString> = vec![
         "-nostdin".into(),
         "-hide_banner".into(),
         "-loglevel".into(),
@@ -101,23 +103,33 @@ pub fn build_ffmpeg_args(request: &AudioProcessRequest) -> Result<Vec<OsString>,
         "-y".into(),
         "-i".into(),
         request.source_path.as_os_str().to_owned(),
-        "-i".into(),
-        request.cover_path.as_os_str().to_owned(),
+    ];
+    if with_cover {
+        args.extend(["-i".into(), request.cover_path.as_os_str().to_owned()]);
+    }
+    args.extend([
         "-map_metadata".into(),
         "-1".into(),
         "-map".into(),
         "0:a:0".into(),
-        "-map".into(),
-        "1:v:0".into(),
+    ]);
+    if with_cover {
+        args.extend(["-map".into(), "1:v:0".into()]);
+    }
+    args.extend([
         "-metadata".into(),
         format!("title={}", request.title).into(),
         "-metadata".into(),
         format!("artist={}", request.uploader).into(),
-        "-c:v".into(),
-        "copy".into(),
-        "-disposition:v:0".into(),
-        "attached_pic".into(),
-    ];
+    ]);
+    if with_cover {
+        args.extend([
+            "-c:v".into(),
+            "copy".into(),
+            "-disposition:v:0".into(),
+            "attached_pic".into(),
+        ]);
+    }
     match request.output_profile {
         AudioOutputProfile::Mp3 { bitrate_kbps } => {
             if !matches!(bitrate_kbps, 128 | 192 | 320) {
@@ -150,6 +162,18 @@ pub fn build_ffmpeg_args(request: &AudioProcessRequest) -> Result<Vec<OsString>,
         }
         AudioOutputProfile::FlacLossless => {
             args.extend(["-c:a".into(), "flac".into()]);
+        }
+        AudioOutputProfile::WavPcm => {
+            // 不重采样、不加 -ar：保持源采样率，24 bit 源不会在解码时被截到 16 bit。
+            let codec = if matches!(
+                request.source_tier,
+                AudioSourceTier::Lossless | AudioSourceTier::HiResLossless
+            ) {
+                "pcm_s24le"
+            } else {
+                "pcm_s16le"
+            };
+            args.extend(["-c:a".into(), codec.into()]);
         }
     }
     args.push(request.output_path.as_os_str().to_owned());
@@ -514,5 +538,37 @@ mod tests {
         .map(|value| value.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
         assert!(!aac.iter().any(|value| value == "-f"));
+    }
+
+    fn wav_args(root: &std::path::Path, tier: AudioSourceTier) -> Vec<String> {
+        build_ffmpeg_args(&request_with_tier(
+            root,
+            AudioOutputProfile::WavPcm,
+            tier,
+        ))
+        .unwrap()
+        .iter()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect()
+    }
+
+    #[test]
+    fn wav_output_drops_the_cover_and_keeps_the_source_sample_rate() {
+        let root = std::path::Path::new("C:/work");
+        let lossy = wav_args(root, AudioSourceTier::Lossy);
+
+        // WAV 容器放不下封面，不能带 cover 输入或 attached_pic
+        assert!(!lossy.iter().any(|value| value.ends_with("cover.jpg")));
+        assert!(!lossy.iter().any(|value| value == "attached_pic"));
+        // 有损源按 16 bit 解，且不重采样
+        assert!(lossy.windows(2).any(|pair| pair == ["-c:a", "pcm_s16le"]));
+        assert!(!lossy.iter().any(|value| value == "-ar"));
+        // 元数据仍然写入
+        assert!(lossy.iter().any(|value| value == "title=Fixture"));
+
+        let lossless = wav_args(root, AudioSourceTier::HiResLossless);
+        assert!(lossless
+            .windows(2)
+            .any(|pair| pair == ["-c:a", "pcm_s24le"]));
     }
 }

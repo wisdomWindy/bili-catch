@@ -15,6 +15,7 @@ const PROFILES: Readonly<Record<AudioFormat, readonly AudioProfileOption[]>> = {
   ],
   m4a: [{ id: "source", label: "Original" }],
   flac: [{ id: "lossless", label: "Lossless" }],
+  wav: [{ id: "source", label: "PCM" }],
 };
 
 export function audioProfileOptions(format: AudioFormat): readonly AudioProfileOption[] {
@@ -22,7 +23,7 @@ export function audioProfileOptions(format: AudioFormat): readonly AudioProfileO
 }
 
 export function defaultAudioProfile(format: AudioFormat): AudioProfileId {
-  return format === "mp3" ? "320" : format === "m4a" ? "source" : "lossless";
+  return format === "mp3" ? "320" : format === "m4a" || format === "wav" ? "source" : "lossless";
 }
 
 export function isAudioProfileValid(

@@ -21,6 +21,7 @@ const audioProfile = computed(() => {
   if (props.task.mode !== "audio-only" || !props.task.audioFormat) return null;
   if (props.task.audioFormat === "mp3") return `${props.task.audioFormat.toUpperCase()} ${props.task.audioBitrateId ?? ""}K`.trim();
   if (props.task.audioFormat === "m4a") return `${props.task.audioFormat.toUpperCase()} ${t("download.originalBitrate")}`;
+  if (props.task.audioFormat === "wav") return `WAV ${t("download.pcm")}`;
   return `${props.task.audioFormat.toUpperCase()} ${t("download.lossless")}`;
 });
 const media = computed(() => [

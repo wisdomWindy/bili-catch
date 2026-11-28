@@ -108,6 +108,28 @@ pub fn select_audio_source(
             })
             .max_by_key(|candidate| candidate.media.bandwidth)
             .ok_or_else(source_unavailable)?,
+        // WAV：能拿到无损就用无损（FLAC 解码后是逐样本一致的 PCM），
+        // 否则退到码率最高的立体声 AAC——从 AAC 解出来的 WAV 不会再掉音质，
+        // 但也不会比 AAC 本身更好，体积却大一个数量级。
+        AudioOutputProfile::WavPcm => {
+            let lossless = candidates
+                .iter()
+                .filter(|candidate| {
+                    matches!(
+                        candidate.tier,
+                        AudioSourceTier::Lossless | AudioSourceTier::HiResLossless
+                    )
+                })
+                .max_by_key(|candidate| candidate.media.bandwidth);
+            match lossless {
+                Some(candidate) => candidate,
+                None => candidates
+                    .iter()
+                    .filter(|candidate| candidate.tier == AudioSourceTier::Lossy)
+                    .max_by_key(|candidate| candidate.media.bandwidth)
+                    .ok_or_else(source_unavailable)?,
+            }
+        }
         // MP3 必须重新编码：只能挑立体声 AAC，绝不能拿杜比 5.1 去压成 MP3，
         // 那是实打实的降级，不是“提升码率”。
         AudioOutputProfile::Mp3 { .. } => candidates
@@ -203,6 +225,28 @@ mod tests {
         };
 
         assert_eq!(error.code, AppErrorCode::E006);
+    }
+
+    #[test]
+    fn wav_prefers_the_lossless_source_and_falls_back_to_stereo_aac() {
+        let mut with_flac = candidates();
+        with_flac.push(candidate(AudioSourceTier::HiResLossless, 30251, 1_411_000));
+        assert_eq!(
+            select_audio_source(&with_flac, AudioOutputProfile::WavPcm, false)
+                .unwrap()
+                .media
+                .id,
+            30251
+        );
+
+        // 没有无损源时退到最高的立体声 AAC，而不是杜比 5.1
+        assert_eq!(
+            select_audio_source(&candidates(), AudioOutputProfile::WavPcm, false)
+                .unwrap()
+                .media
+                .id,
+            30280
+        );
     }
 
     #[test]

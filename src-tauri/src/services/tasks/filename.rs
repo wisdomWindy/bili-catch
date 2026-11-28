@@ -5,6 +5,7 @@ pub(super) fn audio_extension(format: crate::models::AudioFormat) -> &'static st
         crate::models::AudioFormat::Mp3 => "mp3",
         crate::models::AudioFormat::M4a => "m4a",
         crate::models::AudioFormat::Flac => "flac",
+        crate::models::AudioFormat::Wav => "wav",
     }
 }
 

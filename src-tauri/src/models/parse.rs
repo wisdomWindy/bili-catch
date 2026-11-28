@@ -21,6 +21,8 @@ pub enum AudioFormat {
     Mp3,
     M4a,
     Flac,
+    /// 未压缩 PCM（WAV）：给剪辑/训练用，体积大，但不再多一层有损编码。
+    Wav,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

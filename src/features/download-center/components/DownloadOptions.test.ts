@@ -10,7 +10,7 @@ function render(authenticated: boolean, losslessAvailable: boolean) {
       qualities: [],
       codecs: [],
       videoVariants: [],
-      audioFormats: ["m4a", "mp3", ...(losslessAvailable ? ["flac" as const] : [])],
+      audioFormats: ["m4a", "mp3", "wav", ...(losslessAvailable ? ["flac" as const] : [])],
       audioCapability: {
         maxLossyKbps: 64,
         losslessAvailable,
@@ -59,9 +59,10 @@ describe("DownloadOptions audio mode", () => {
     const formatOptions = wrapper.get("[data-testid='audio-format']").findAll("option");
     const profileOptions = wrapper.get("[data-testid='audio-profile']").findAll("option");
 
-    expect(formatOptions.map((option) => option.attributes("value"))).toEqual(["", "mp3", "m4a", "flac"]);
+    expect(formatOptions.map((option) => option.attributes("value"))).toEqual(["", "mp3", "m4a", "flac", "wav"]);
     expect(formatOptions[3].attributes("disabled")).toBeDefined();
     expect(formatOptions[3].text()).toContain("需登录");
+    expect(formatOptions[4].attributes("disabled")).toBeUndefined();
     expect(profileOptions.map((option) => option.attributes("value"))).toEqual(["128", "192", "320"]);
   });
 
@@ -79,6 +80,10 @@ describe("DownloadOptions audio mode", () => {
 
     await wrapper.setProps({ audioFormat: "m4a", audioBitrateId: "source" });
     expect(wrapper.get("[data-testid='audio-quality-hint']").text()).toContain("不转码");
+
+    await wrapper.setProps({ audioFormat: "wav", audioBitrateId: "source" });
+    expect(wrapper.get("[data-testid='audio-quality-hint']").text()).toContain("不压缩");
+    expect(wrapper.get("[data-testid='audio-profile']").text()).toContain("PCM");
 
     await wrapper.setProps({ audioFormat: null, audioBitrateId: null });
     expect(wrapper.find("[data-testid='audio-quality-hint']").exists()).toBe(false);

@@ -14,15 +14,19 @@ describe("audio output profiles", () => {
     ]);
     expect(audioProfileOptions("m4a")).toEqual([{ id: "source", label: "Original" }]);
     expect(audioProfileOptions("flac")).toEqual([{ id: "lossless", label: "Lossless" }]);
+    expect(audioProfileOptions("wav")).toEqual([{ id: "source", label: "PCM" }]);
   });
 
   it("uses the approved defaults and rejects cross-format profile ids", () => {
     expect(defaultAudioProfile("mp3")).toBe("320");
     expect(defaultAudioProfile("m4a")).toBe("source");
     expect(defaultAudioProfile("flac")).toBe("lossless");
+    expect(defaultAudioProfile("wav")).toBe("source");
     expect(isAudioProfileValid("mp3", "320")).toBe(true);
     expect(isAudioProfileValid("mp3", "source")).toBe(false);
     expect(isAudioProfileValid("m4a", "192")).toBe(false);
     expect(isAudioProfileValid("flac", null)).toBe(false);
+    expect(isAudioProfileValid("wav", "source")).toBe(true);
+    expect(isAudioProfileValid("wav", "lossless")).toBe(false);
   });
 });

@@ -112,7 +112,7 @@ pub(crate) fn capabilities_from_play(play: &PlayData) -> PlayCapabilities {
     let mut audio_formats = if audio_bitrates.is_empty() {
         Vec::new()
     } else {
-        vec![AudioFormat::M4a, AudioFormat::Mp3]
+        vec![AudioFormat::M4a, AudioFormat::Mp3, AudioFormat::Wav]
     };
     if lossless_available {
         audio_formats.push(AudioFormat::Flac);
@@ -494,7 +494,7 @@ mod tests {
         );
         assert_eq!(
             result.audio_formats,
-            vec![AudioFormat::M4a, AudioFormat::Mp3]
+            vec![AudioFormat::M4a, AudioFormat::Mp3, AudioFormat::Wav]
         );
         assert_eq!(result.audio_bitrates[0].id, "192");
     }
